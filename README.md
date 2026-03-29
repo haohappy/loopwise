@@ -88,6 +88,11 @@ cc-review code --file src/auth.ts "Refactor to use passport.js"
 cc-review plan --max-rounds 10 --verbose "Design a real-time notification system"
 ```
 
+## Default models
+
+- **Claude Code**: Claude Opus 4.6 (used for plan/code generation and revision)
+- **Codex**: GPT-5.4 (used for review)
+
 ## Configuration
 
 Configure via CLI flags or environment variables:
@@ -95,8 +100,8 @@ Configure via CLI flags or environment variables:
 | Flag | Environment Variable | Default | Description |
 |---|---|---|---|
 | `--max-rounds` | `CC_REVIEW_MAX_ROUNDS` | 5 | Maximum review cycles |
-| `--claude-model` | `CC_REVIEW_CLAUDE_MODEL` | *(default)* | Claude model override |
-| `--codex-model` | `CC_REVIEW_CODEX_MODEL` | gpt-5.4 | Codex model for reviews |
+| `--claude-model` | `CC_REVIEW_CLAUDE_MODEL` | Claude Opus 4.6 | Claude model for generation |
+| `--codex-model` | `CC_REVIEW_CODEX_MODEL` | GPT-5.4 | Codex model for reviews |
 | `--output-dir` | `CC_REVIEW_OUTPUT_DIR` | .cc-review | Session output directory |
 | `--timeout` | `CC_REVIEW_TIMEOUT` | 300 | Timeout per CLI call (seconds) |
 | `--verbose` | `CC_REVIEW_VERBOSE` | false | Show debug output |
