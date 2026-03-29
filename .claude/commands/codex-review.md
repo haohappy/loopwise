@@ -31,7 +31,40 @@ Extract from $ARGUMENTS:
 2. `file_path` — if the remaining text contains `--file <path>`, extract the path and remove it
 3. `max_rounds` — if the remaining text contains `--max-rounds <n>`, extract the number and remove it. Default: no limit (loop until approved)
 4. `codex_model` — if the remaining text contains `--model <model>`, extract the model name and remove it. Default: `gpt-5.4`
-5. `prompt` — everything left after extracting all flags above
+5. `force` — if the remaining text contains `--force`, set to true and remove it. Default: false. Bypasses review history check.
+6. `prompt` — everything left after extracting all flags above
+
+### Step 0.5: Check review history (only when `--file` is provided)
+
+**Skip this step entirely if `force` is true.**
+
+If `file_path` was provided, check for a previous review of the same file with the same content:
+
+1. Compute the file's content hash:
+   ```bash
+   FILE_HASH=$(shasum -a 256 "<file_path>" | cut -d' ' -f1)
+   ```
+
+2. Check if `.cc-review/history.json` exists and contains a record for this file+hash. The history file is a JSON array:
+   ```json
+   [
+     {
+       "file": "src/auth.ts",
+       "hash": "abc123...",
+       "status": "APPROVED",
+       "date": "2026-03-29 17:30",
+       "rounds": 3,
+       "report": ".cc-review/20260329_173022_12345/REVIEW_REPORT.md",
+       "last_feedback": null
+     }
+   ]
+   ```
+
+3. **If a matching record exists (same file path AND same hash)**:
+   - If `status` is `APPROVED`: Tell the user **"This file was already reviewed and approved on {date} ({rounds} rounds). Content is unchanged (hash: {hash:.8}). Skipping review."** and show them the path to the previous report. **Stop here — do not start a new review loop.**
+   - If `status` is `MAX_ROUNDS_REACHED`: Tell the user **"This file was previously reviewed on {date} but did not reach approval after {rounds} rounds. Last feedback was:"** then show `last_feedback`. Ask the user if they want to: (a) resume with the previous feedback as context, or (b) start a fresh review.
+
+4. **If no matching record** (new file or content changed): proceed normally.
 
 ### Step 1: Get initial content
 
@@ -138,6 +171,29 @@ When the loop ends, write a **Review Report** file to the current working direct
 Adapt the number of round sections to match the actual number of rounds. Each round section should capture the **key feedback points** from Codex and the **specific changes** Claude Code made in response. Be concise but complete — someone reading only this report should understand what happened.
 
 After writing the file, tell the user the report has been saved to `REVIEW_REPORT.md`.
+
+### Step 7: Update review history (only when `--file` was provided)
+
+If `file_path` was provided, update `.cc-review/history.json`:
+
+1. Compute the final file hash: `shasum -a 256 "<file_path>" | cut -d' ' -f1`
+2. Read the existing `.cc-review/history.json` (or start with `[]` if it doesn't exist)
+3. Remove any existing record with the same `file` path (only keep the latest review per file)
+4. Append a new record:
+   ```json
+   {
+     "file": "<file_path>",
+     "hash": "<final_hash>",
+     "status": "APPROVED" or "MAX_ROUNDS_REACHED",
+     "date": "<current datetime>",
+     "rounds": <total_rounds>,
+     "report": "REVIEW_REPORT.md",
+     "last_feedback": "<last Codex feedback if not approved, null if approved>"
+   }
+   ```
+5. Write the updated array back to `.cc-review/history.json`
+
+Use `jq` via Bash to read/write the JSON file. Create `.cc-review/` directory if it doesn't exist.
 
 ## Important rules
 
