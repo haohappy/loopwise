@@ -20,7 +20,7 @@ set -euo pipefail
 
 # ─── Configuration ───────────────────────────────────────────────────────────
 
-MAX_ROUNDS="${CC_REVIEW_MAX_ROUNDS:-5}"
+MAX_ROUNDS="${CC_REVIEW_MAX_ROUNDS:-0}"  # 0 = unlimited
 CLAUDE_MODEL="${CC_REVIEW_CLAUDE_MODEL:-}"
 CODEX_MODEL="${CC_REVIEW_CODEX_MODEL:-gpt-5.4}"
 OUTPUT_DIR="${CC_REVIEW_OUTPUT_DIR:-.cc-review}"
@@ -108,13 +108,15 @@ run_with_timeout() {
 run_claude_raw() {
   local prompt="$1"
   local resume_session="${2:-}"
-  local claude_args=(-p --output-format json --no-session-persistence)
+  local claude_args=(-p --output-format json)
 
   [[ -n "$CLAUDE_MODEL" ]] && claude_args+=(--model "$CLAUDE_MODEL")
   [[ -n "$resume_session" ]] && claude_args+=(--resume "$resume_session")
 
   if [[ "${MODE:-}" == "code" ]]; then
     claude_args+=(--allowedTools "Read,Edit,Bash,Write")
+    # In code mode with a target file, instruct Claude to output the full file contents
+    # so we capture the actual code, not just a summary of changes.
   fi
 
   debug "Running: printf prompt | claude ${claude_args[*]}"
@@ -208,17 +210,9 @@ $content"
 
 is_approved() {
   local review="$1"
-  # Strict: APPROVED on its own line
-  if printf '%s\n' "$review" | grep -qxE '[[:space:]]*APPROVED[[:space:]]*'; then
-    return 0
-  fi
-  # Loose fallback: short output starting with APPROVED (avoid false positives in long feedback)
-  local lines
-  lines=$(printf '%s\n' "$review" | wc -l | tr -d ' ')
-  if [[ "$lines" -le 3 ]] && printf '%s\n' "$review" | head -1 | grep -qi "^approved"; then
-    return 0
-  fi
-  return 1
+  # Strict only: APPROVED must appear on its own line with nothing else.
+  # This avoids false positives like "APPROVED, but please fix X".
+  printf '%s\n' "$review" | grep -qxE '[[:space:]]*APPROVED[[:space:]]*'
 }
 
 # ─── Main loop ──────────────────────────────────────────────────────────────
@@ -275,9 +269,13 @@ Requirement: $initial_prompt"
       if [[ -n "$target_file" ]]; then
         claude_prompt="$initial_prompt
 
-Focus on the file: $target_file"
+Focus on the file: $target_file
+
+IMPORTANT: After making changes, output the COMPLETE updated file contents in your response. Do NOT just describe what you changed — output the full code."
       else
-        claude_prompt="$initial_prompt"
+        claude_prompt="$initial_prompt
+
+IMPORTANT: Output the COMPLETE code in your response. Do NOT just describe what to do — output the full implementation."
       fi
     fi
 
@@ -285,6 +283,17 @@ Focus on the file: $target_file"
     raw=$(run_claude_raw "$claude_prompt") || exit 1
     current_content=$(extract_result "$raw")
     claude_session=$(extract_session_id "$raw")
+
+    # In code mode with a target file, prefer the actual file on disk over .result
+    # because Claude may have edited the file but only returned a summary.
+    if [[ "$mode" == "code" && -n "$target_file" && -f "$target_file" ]]; then
+      local file_content
+      file_content=$(cat "$target_file")
+      if [[ -n "$file_content" ]]; then
+        debug "Code mode: using file contents from $target_file instead of .result"
+        current_content="$file_content"
+      fi
+    fi
 
     if [[ -z "$current_content" ]]; then
       err "Claude Code returned empty output"
@@ -299,13 +308,22 @@ Focus on the file: $target_file"
 
   # ── Review loop ──
 
-  local round=1
-  while [[ $round -lt $MAX_ROUNDS ]]; do
+  local round=0
+  while true; do
     round=$((round + 1))
+
+    # Check max rounds limit (0 = unlimited)
+    if [[ "$MAX_ROUNDS" -gt 0 && $round -gt $MAX_ROUNDS ]]; then
+      break
+    fi
 
     # ── Codex review ──
     echo ""
-    log "${BOLD}Round ${round}/${MAX_ROUNDS}${NC}: Codex reviewing..."
+    if [[ "$MAX_ROUNDS" -gt 0 ]]; then
+      log "${BOLD}Round ${round}/${MAX_ROUNDS}${NC}: Codex reviewing..."
+    else
+      log "${BOLD}Round ${round}${NC}: Codex reviewing..."
+    fi
 
     local review
     review=$(run_codex_review "$current_content" "$mode") || exit 1
@@ -319,6 +337,11 @@ Focus on the file: $target_file"
       echo ""
       save_artifact "final.md" "$current_content"
       save_artifact "status.txt" "APPROVED at round $round"
+      # Write approved result back to the target file if --file was used
+      if [[ -n "$target_file" ]]; then
+        printf '%s\n' "$current_content" > "$target_file"
+        ok "Updated ${target_file} with approved version"
+      fi
       log "Final output: ${CYAN}${SESSION_DIR}/final.md${NC}"
       return 0
     fi
@@ -329,16 +352,21 @@ Focus on the file: $target_file"
     review_lines=$(printf '%s\n' "$review" | wc -l | tr -d ' ')
     [[ "$review_lines" -gt 5 ]] && echo -e "${DIM}  ... ($review_lines lines total)${NC}"
 
-    # Check if this is the last round
-    if [[ $round -ge $MAX_ROUNDS ]]; then
-      break
-    fi
-
     # ── Claude Code revision ──
     echo ""
     log "${BOLD}Round ${round}/${MAX_ROUNDS}${NC}: Claude Code revising based on feedback..."
 
+    local code_instruction=""
+    if [[ "$mode" == "code" ]]; then
+      code_instruction="
+
+IMPORTANT: Output the COMPLETE updated code in your response. Do NOT just describe what you changed — output the full implementation."
+    fi
+
     local revision_prompt="A senior reviewer has provided the following feedback on your ${mode}. Please revise accordingly and output the complete updated version.
+
+=== ORIGINAL REQUIREMENT ===
+$initial_prompt
 
 === REVIEWER FEEDBACK ===
 $review
@@ -346,7 +374,7 @@ $review
 === YOUR PREVIOUS OUTPUT ===
 $current_content
 
-Please address ALL feedback points and produce an improved version."
+Please address ALL feedback points while staying true to the original requirement. Produce an improved version.${code_instruction}"
 
     local raw_revised
     if [[ -n "$claude_session" ]]; then
@@ -371,6 +399,17 @@ Please address ALL feedback points and produce an improved version."
       current_content="$revised"
     fi
 
+    # In code mode with a target file, prefer the actual file on disk
+    # because Claude may have edited the file but only returned a summary.
+    if [[ "$mode" == "code" && -n "$target_file" && -f "$target_file" ]]; then
+      local file_content
+      file_content=$(cat "$target_file")
+      if [[ -n "$file_content" ]]; then
+        debug "Code mode: using file contents from $target_file instead of .result"
+        current_content="$file_content"
+      fi
+    fi
+
     save_artifact "round_${round}_claude_revised.md" "$current_content"
     ok "Claude Code produced revision"
   done
@@ -379,7 +418,11 @@ Please address ALL feedback points and produce an improved version."
   echo ""
   warn "Reached maximum of ${MAX_ROUNDS} rounds without full approval."
   save_artifact "final.md" "$current_content"
-  save_artifact "status.txt" "MAX_ROUNDS_REACHED at round $MAX_ROUNDS"
+  save_artifact "status.txt" "MAX_ROUNDS_REACHED at round $((round - 1))"
+  if [[ -n "$target_file" ]]; then
+    printf '%s\n' "$current_content" > "$target_file"
+    ok "Updated ${target_file} with latest version"
+  fi
   log "Last version: ${CYAN}${SESSION_DIR}/final.md${NC}"
   return 1
 }

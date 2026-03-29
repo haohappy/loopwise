@@ -99,7 +99,7 @@ Configure via CLI flags or environment variables:
 
 | Flag | Environment Variable | Default | Description |
 |---|---|---|---|
-| `--max-rounds` | `CC_REVIEW_MAX_ROUNDS` | 5 | Maximum review cycles |
+| `--max-rounds` | `CC_REVIEW_MAX_ROUNDS` | *(unlimited)* | Maximum review cycles (0 = no limit) |
 | `--claude-model` | `CC_REVIEW_CLAUDE_MODEL` | Claude Opus 4.6 | Claude model for generation |
 | `--codex-model` | `CC_REVIEW_CODEX_MODEL` | GPT-5.4 | Codex model for reviews |
 | `--output-dir` | `CC_REVIEW_OUTPUT_DIR` | .cc-review | Session output directory |

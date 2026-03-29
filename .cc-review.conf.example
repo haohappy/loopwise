@@ -2,7 +2,7 @@
 # Source this file or export these variables in your shell profile
 
 # Maximum number of review rounds before stopping
-CC_REVIEW_MAX_ROUNDS=5
+CC_REVIEW_MAX_ROUNDS=0  # 0 = unlimited, loop until approved
 
 # Claude Code model (empty = use default)
 CC_REVIEW_CLAUDE_MODEL=""
