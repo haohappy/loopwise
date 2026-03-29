@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(codex --version)",
+      "Bash(claude --version)",
+      "Bash(codex --help)",
+      "Bash(codex exec:*)",
+      "Bash(codex review:*)",
+      "Bash(npm --version)",
+      "Read(//Users/hao/Downloads/**)",
+      "Bash(unzip -l files.zip)",
+      "Bash(chmod:*)",
+      "Bash(bash -n /Users/hao/vibe/multi-agent-loop/cc-review.sh)",
+      "Bash(/Users/hao/vibe/multi-agent-loop/cc-review.sh --help)",
+      "Bash(/Users/hao/vibe/multi-agent-loop/.gitignore:*)",
+      "Bash(gh repo:*)",
+      "Bash(ls ~/.claude/commands/*.md)"
+    ]
+  }
+}

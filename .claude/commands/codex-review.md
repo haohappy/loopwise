@@ -4,15 +4,18 @@ Automated review loop: you (Claude Code) produce a plan or code, then Codex revi
 
 ## Arguments
 
-$ARGUMENTS should be in format: `<mode> [prompt or instructions]`
+$ARGUMENTS should be in format: `<mode> [--file <path>] [prompt or instructions]`
 
 - **mode**: `plan` or `code`
-- **prompt**: What to generate or review. If omitted, review the work you just produced in this conversation.
+- **--file \<path\>**: Optional. Path to an existing file to use as initial content for review (skip generation).
+- **prompt**: What to generate or review. If both `--file` and prompt are omitted, review the work you just produced in this conversation.
 
 Examples:
 ```
 /codex-review plan Design a REST API for user management with JWT auth
 /codex-review code Implement a rate limiter middleware for Express
+/codex-review plan --file docs/plan.md
+/codex-review code --file src/auth.ts Refactor to use passport.js
 /codex-review plan              (review the plan you just wrote in this conversation)
 /codex-review code              (review the code you just wrote in this conversation)
 ```
@@ -23,15 +26,20 @@ You are now entering an automated review loop with Codex. Follow these steps pre
 
 ### Step 0: Parse arguments
 
-Extract `mode` (first word: "plan" or "code") and `prompt` (everything after) from $ARGUMENTS.
+Extract from $ARGUMENTS:
+1. `mode` — first word: "plan" or "code"
+2. `file_path` — if the remaining text contains `--file <path>`, extract the path and remove `--file <path>` from the remaining text
+3. `prompt` — everything left after extracting mode and --file
 
-If no prompt is provided, gather the most recent plan or code you produced in this conversation as the initial content to review.
+### Step 1: Get initial content
 
-### Step 1: Generate initial content (if prompt is provided)
+Three cases, checked in this order:
 
-If a prompt was given, generate the plan or code as requested. This is your **initial content**.
+1. **`--file` was provided**: Read the file at `file_path` using the Read tool. The file contents become the **initial content**. If a prompt was also given, treat it as additional instructions for Codex's review (include it in the review prompt context).
 
-If no prompt was given, use the content you already produced in this conversation as the initial content.
+2. **A prompt was given (no --file)**: Generate the plan or code as requested. This is your **initial content**.
+
+3. **Neither --file nor prompt**: Gather the most recent plan or code you produced in this conversation as the initial content.
 
 ### Step 2: Send to Codex for review
 
@@ -67,7 +75,7 @@ PROMPT_EOF
 # 1. Correctness  2. Performance  3. Error handling  4. Readability  5. Security  6. Testing
 
 # Combine prompt and content, pipe to codex
-cat "$REVIEW_PROMPT_FILE" "$CONTENT_FILE" | codex exec - --model o3 --sandbox read-only --skip-git-repo-check --ephemeral -o /tmp/codex-review-output.txt 2>/dev/null
+cat "$REVIEW_PROMPT_FILE" "$CONTENT_FILE" | codex exec - --model gpt-5.4 --sandbox read-only --skip-git-repo-check --ephemeral -o /tmp/codex-review-output.txt 2>/dev/null
 REVIEW=$(cat /tmp/codex-review-output.txt)
 rm -f "$CONTENT_FILE" "$REVIEW_PROMPT_FILE" /tmp/codex-review-output.txt
 echo "$REVIEW"
@@ -100,5 +108,5 @@ When the loop ends, tell the user:
 - **Be transparent**: Show a brief preview of Codex's feedback each round
 - **Preserve context**: Each revision should build on the previous version, not start from scratch
 - **Don't over-revise**: Only change what Codex flagged, don't rewrite everything each round
-- **Codex model**: Default is `o3`. User can specify a different model by adding `--model <model>` in their prompt
+- **Codex model**: Default is `gpt-5.4`. User can specify a different model by adding `--model <model>` in their prompt
 - **Max rounds**: Default is 5. User can specify `--max-rounds <n>` in their prompt

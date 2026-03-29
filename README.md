@@ -96,7 +96,7 @@ Configure via CLI flags or environment variables:
 |---|---|---|---|
 | `--max-rounds` | `CC_REVIEW_MAX_ROUNDS` | 5 | Maximum review cycles |
 | `--claude-model` | `CC_REVIEW_CLAUDE_MODEL` | *(default)* | Claude model override |
-| `--codex-model` | `CC_REVIEW_CODEX_MODEL` | o3 | Codex model for reviews |
+| `--codex-model` | `CC_REVIEW_CODEX_MODEL` | gpt-5.4 | Codex model for reviews |
 | `--output-dir` | `CC_REVIEW_OUTPUT_DIR` | .cc-review | Session output directory |
 | `--timeout` | `CC_REVIEW_TIMEOUT` | 300 | Timeout per CLI call (seconds) |
 | `--verbose` | `CC_REVIEW_VERBOSE` | false | Show debug output |

@@ -8,7 +8,7 @@ CC_REVIEW_MAX_ROUNDS=5
 CC_REVIEW_CLAUDE_MODEL=""
 
 # Codex model for reviews
-CC_REVIEW_CODEX_MODEL="o3"
+CC_REVIEW_CODEX_MODEL="gpt-5.4"
 
 # Where to store session artifacts
 CC_REVIEW_OUTPUT_DIR=".cc-review"
