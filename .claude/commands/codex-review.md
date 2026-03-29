@@ -96,12 +96,44 @@ Go back to Step 2 with the revised content. Repeat until:
 - Codex outputs APPROVED, OR
 - You have completed 5 rounds of review (configurable via the prompt)
 
-### Step 6: Report
+### Step 6: Write Review Report
 
-When the loop ends, tell the user:
-- How many rounds it took
-- Whether it was approved or hit the max rounds limit
-- A brief summary of what changed across rounds
+When the loop ends, write a **Review Report** file to the current working directory at `REVIEW_REPORT.md`. The report must use this exact format:
+
+```markdown
+# Codex Review Report
+
+- **Mode**: plan / code
+- **Status**: APPROVED / MAX_ROUNDS_REACHED
+- **Total rounds**: N
+- **Date**: YYYY-MM-DD HH:MM
+- **Models**: Claude Code (claude-opus-4-6) ↔ Codex (gpt-5.4)
+- **Input**: (prompt text, or file path if --file was used)
+
+## Round-by-round summary
+
+### Round 1: Initial generation
+- **Action**: Claude Code generated initial [plan/code]
+
+### Round 2: Codex review #1
+- **Verdict**: FEEDBACK
+- **Key feedback**:
+  - (bullet point summary of each major feedback item)
+- **Revision**: Claude Code addressed feedback:
+  - (bullet point summary of what was changed)
+
+### Round 3: Codex review #2
+- **Verdict**: APPROVED
+- **Comments**: (any final comments from Codex, or "No further issues found")
+
+## Final result
+
+(State whether the plan/code was approved, or if max rounds were reached with remaining issues.)
+```
+
+Adapt the number of round sections to match the actual number of rounds. Each round section should capture the **key feedback points** from Codex and the **specific changes** Claude Code made in response. Be concise but complete — someone reading only this report should understand what happened.
+
+After writing the file, tell the user the report has been saved to `REVIEW_REPORT.md`.
 
 ## Important rules
 
