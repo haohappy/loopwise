@@ -94,7 +94,7 @@ If NOT approved, show the user a brief summary of Codex's feedback (first 5 line
 
 Go back to Step 2 with the revised content. Repeat until:
 - Codex outputs APPROVED, OR
-- You have completed 5 rounds of review (configurable via the prompt)
+- User specified `--max-rounds <n>` and that limit is reached (no default limit — loop continues until approved unless explicitly capped)
 
 ### Step 6: Write Review Report
 
@@ -142,4 +142,4 @@ After writing the file, tell the user the report has been saved to `REVIEW_REPOR
 - **Preserve context**: Each revision should build on the previous version, not start from scratch
 - **Don't over-revise**: Only change what Codex flagged, don't rewrite everything each round
 - **Codex model**: Default is `gpt-5.4`. User can specify a different model by adding `--model <model>` in their prompt
-- **Max rounds**: Default is 5. User can specify `--max-rounds <n>` in their prompt
+- **Max rounds**: No default limit — loop runs until Codex approves. User can specify `--max-rounds <n>` to cap the iterations
