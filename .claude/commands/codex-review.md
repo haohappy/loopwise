@@ -135,10 +135,14 @@ Use the parsed `codex_model` variable (default `gpt-5.4`) in the codex exec comm
 
 ### Step 6: Write Review Report
 
-When the loop ends, write a **Review Report** file to the current working directory at `REVIEW_REPORT.md`. The report must use this exact format:
+When the loop ends, write a **Review Report** file to the current working directory. The filename depends on the mode:
+- Plan mode: `PLAN_REVIEW_REPORT.md`
+- Code mode: `CODE_REVIEW_REPORT.md`
+
+The report must use this exact format:
 
 ```markdown
-# Codex Review Report
+# Codex Plan Review Report / Codex Code Review Report
 
 - **Mode**: plan / code
 - **Status**: APPROVED / MAX_ROUNDS_REACHED
@@ -170,7 +174,7 @@ When the loop ends, write a **Review Report** file to the current working direct
 
 Adapt the number of round sections to match the actual number of rounds. Each round section should capture the **key feedback points** from Codex and the **specific changes** Claude Code made in response. Be concise but complete — someone reading only this report should understand what happened.
 
-After writing the file, tell the user the report has been saved to `REVIEW_REPORT.md`.
+After writing the file, tell the user the report has been saved to `PLAN_REVIEW_REPORT.md` or `CODE_REVIEW_REPORT.md` (depending on mode).
 
 ### Step 7: Update review history (only when `--file` was provided)
 
