@@ -7,9 +7,9 @@
 
 ---
 
-## 3. Basic Usage
+## Basic Usage
 
-### 3.1 Review an existing file (most common)
+### 1 Review an existing file (most common)
 
 According to our experience, it's always a good practice to ask Claude to save its plan into a .md file first, whether it's a dev plan, refactoring plan, or anything else. Then have Codex review that file with --file before moving forward.
 
@@ -20,7 +20,7 @@ According to our experience, it's always a good practice to ask Claude to save i
 - `plan` — Review mode (plan or code)
 - `--file` — Path to the file to review
 
-### 3.2 Review what you just wrote in the conversation
+### 2 Review what you just wrote in the conversation
 
 ```
 /loopwise plan
@@ -28,7 +28,7 @@ According to our experience, it's always a good practice to ask Claude to save i
 
 Without `--file`, it automatically reviews the most recent plan or code produced in the current conversation.
 
-### 3.3 Generate from a prompt, then review
+### 3 Generate from a prompt, then review
 
 ```
 /loopwise plan Design a REST API for user management with JWT auth
@@ -36,7 +36,7 @@ Without `--file`, it automatically reviews the most recent plan or code produced
 
 Claude Code generates the plan first, then automatically sends it to Codex for review.
 
-### 3.4 Review code
+### 4 Review code
 
 ```
 /loopwise code --file src/auth.ts
@@ -44,7 +44,7 @@ Claude Code generates the plan first, then automatically sends it to Codex for r
 
 Code mode evaluates: correctness, performance, error handling, readability, security, and test coverage.
 
-### 3.5 Optional flags
+### 5 Optional flags
 
 ```
 /loopwise plan --file docs/plan.md --max-rounds 5      # Limit to 5 rounds
@@ -54,7 +54,7 @@ Code mode evaluates: correctness, performance, error handling, readability, secu
 
 ---
 
-## 4. Real-World Case Study
+## Real-World Case Study
 
 Below is the full process of using Loopwise to review a payment architecture refactoring plan.
 
