@@ -135,7 +135,7 @@ Each session creates a timestamped directory under `.loopwise/`:
 
 ## Tutorial
 
-See [docs/TUTORIAL.md](docs/TUTORIAL.md) for a step-by-step guide with a real-world review example.
+See [docs/TUTORIAL_EN.md](docs/TUTORIAL_EN.md) for a step-by-step guide with a real-world review example. Also available in [Chinese](docs/TUTORIAL.md).
 
 ## Tips
 

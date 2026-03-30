@@ -138,7 +138,7 @@ loopwise plan --max-rounds 10 --verbose "设计一个实时通知系统"
 
 ## 教程
 
-查看 [docs/TUTORIAL.md](docs/TUTORIAL.md) 获取包含真实评审案例的详细教程。
+查看 [docs/TUTORIAL.md](docs/TUTORIAL.md) 获取包含真实评审案例的详细教程。也提供 [English version](docs/TUTORIAL_EN.md)。
 
 ## 使用建议
 
