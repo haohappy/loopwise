@@ -149,19 +149,19 @@ When running `/loopwise` inside Claude Code, you may be prompted to confirm each
 {
   "permissions": {
     "allow": [
-      "Bash(CONTENT_FILE=*)",
-      "Bash(REVIEW_OUTPUT=*)",
-      "Bash(FILE_HASH=*)",
-      "Bash(codex exec *)",
+      "Bash(cat /tmp/loopwise*)",
+      "Bash(cat */tmp/loopwise*)",
+      "Bash(rm -f /tmp/loopwise*)",
       "Bash(shasum *)",
-      "Bash(cat *loopwise*)",
-      "Bash(mkdir -p .loopwise*)"
+      "Bash(mkdir -p .loopwise*)",
+      "Write(/tmp/loopwise*)",
+      "Read(/tmp/loopwise*)"
     ]
   }
 }
 ```
 
-This allows the specific Bash patterns that `/loopwise` uses (temp file creation, codex invocation, hash computation, history read/write). Merge these into your existing `permissions.allow` array if you already have other rules.
+These rules allow the specific tool calls that `/loopwise` uses: writing temp files, invoking Codex via pipe, reading review output, computing file hashes, and managing the history directory. Merge these into your existing `permissions.allow` array if you already have other rules.
 
 ## Output
 

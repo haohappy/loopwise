@@ -78,43 +78,29 @@ Three cases, checked in this order:
 
 ### Step 2: Send to Codex for review
 
-Save the current content to a temp file, then call Codex to review it:
+**IMPORTANT: Execute each step as a SEPARATE Bash tool call. Do NOT combine them into one multi-line command.** This ensures permissions auto-approve correctly.
 
+**Step 2a:** Use the Write tool to save the current content to a temp file (e.g., `/tmp/loopwise-content.md`).
+
+**Step 2b:** Build the review prompt (plan or code criteria, plus the content) and use the Write tool to save it to another temp file (e.g., `/tmp/loopwise-prompt.md`).
+
+For plan mode, the review prompt should evaluate: completeness, technical feasibility, edge cases, architecture, security.
+For code mode, evaluate: correctness, performance, error handling, readability, security, testing.
+
+Always include this instruction in the prompt:
+> If solid and ready, respond with EXACTLY this on the first line: APPROVED
+> If improvements are needed, provide specific, actionable feedback. Do NOT say APPROVED if you have any suggestions.
+
+**Step 2c:** Call Codex in a single Bash command:
 ```bash
-CONTENT_FILE=$(mktemp /tmp/codex-content-XXXXXX.md)
-cat > "$CONTENT_FILE" << 'CONTENT_EOF'
-<paste the current content here>
-CONTENT_EOF
+cat /tmp/loopwise-prompt.md /tmp/loopwise-content.md | codex exec - --model <codex_model> --sandbox read-only --skip-git-repo-check --ephemeral -o /tmp/loopwise-output.md 2>/dev/null && cat /tmp/loopwise-output.md
+```
 
-REVIEW_PROMPT_FILE=$(mktemp /tmp/codex-prompt-XXXXXX.md)
-# For plan mode:
-cat > "$REVIEW_PROMPT_FILE" << 'PROMPT_EOF'
-You are a senior technical reviewer. Review the following development plan.
+**Step 2d:** Read the output from `/tmp/loopwise-output.md` using the Read tool.
 
-Evaluate:
-1. Completeness: Are all requirements addressed?
-2. Technical feasibility: Is the approach sound?
-3. Edge cases: Are error handling and edge cases considered?
-4. Architecture: Is the design clean and maintainable?
-5. Security: Are there security concerns?
-
-If the plan is solid and ready for implementation, respond with EXACTLY this on the first line:
-APPROVED
-
-If improvements are needed, provide specific, actionable feedback. Do NOT say APPROVED if you have any suggestions.
-
-=== PLAN TO REVIEW ===
-PROMPT_EOF
-
-# For code mode, replace the review criteria with:
-# 1. Correctness  2. Performance  3. Error handling  4. Readability  5. Security  6. Testing
-
-# Combine prompt and content, pipe to codex
-REVIEW_OUTPUT=$(mktemp /tmp/loopwise-output-XXXXXX.md)
-cat "$REVIEW_PROMPT_FILE" "$CONTENT_FILE" | codex exec - --model <codex_model> --sandbox read-only --skip-git-repo-check --ephemeral -o "$REVIEW_OUTPUT" 2>/dev/null
-REVIEW=$(cat "$REVIEW_OUTPUT")
-rm -f "$CONTENT_FILE" "$REVIEW_PROMPT_FILE" "$REVIEW_OUTPUT"
-echo "$REVIEW"
+**Step 2e:** Clean up temp files:
+```bash
+rm -f /tmp/loopwise-content.md /tmp/loopwise-prompt.md /tmp/loopwise-output.md
 ```
 
 ### Step 3: Check approval
