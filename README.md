@@ -1,7 +1,7 @@
 [中文文档](README_CN.md)
 
 <div align="center">
-  <img src="assets/logo.png" alt="Loopwise Logo">
+  <img src="assets/logo.png" width="582" alt="Loopwise Logo">
 </div>
 
 # loopwise
