@@ -10,10 +10,10 @@ Claude Code generates plans or code, Codex reviews them, feedback flows back to 
 
 ```
 ┌─────────────┐     plan/code      ┌─────────────┐
-│ Claude Code  │ ─────────────────→ │   Codex     │
-│  (generate)  │                    │  (review)   │
-│              │ ←───────────────── │             │
-│  (revise)    │     feedback       │             │
+│ Claude Code │ ─────────────────→ │   Codex     │
+│  (generate) │                    │  (review)   │
+│             │ ←───────────────── │             │
+│  (revise)   │     feedback       │             │
 └─────────────┘                    └─────────────┘
        ↑                                  │
        └──── loop until APPROVED ─────────┘
