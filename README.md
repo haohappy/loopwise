@@ -92,6 +92,12 @@ Then inside any Claude Code session:
 
 This is the most convenient way — Claude Code drives the loop directly, calling Codex for review, reading feedback, and revising in-session. No separate process needed.
 
+**Screenshot: Review loop in action**
+
+<img src="assets/screenshot1.png" alt="Loopwise Round 1 - Codex review and Claude Code revision">
+
+<img src="assets/screenshot2.png" alt="Loopwise Round 2 - Continued review and fixes">
+
 ### Option 2: Standalone shell command
 
 Run from any terminal as an independent process:
