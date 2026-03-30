@@ -4,9 +4,9 @@
   <img src="assets/logo.png" width="291" alt="Loopwise Logo">
 </div>
 
-# loopwise
+# Loopwise: Automated Plan/Code Review Tool
 
-Automated review loop between Claude Code and Codex CLI.
+Automated review loop between Claude Code and Codex CLI. It leverages two top-tier AI models (Claude Opus 4.6 + GPT-5.4) to cross-review each other, producing significantly higher quality output than either model alone.
 
 Claude Code generates plans or code, Codex reviews them, feedback flows back to Claude Code automatically, and the cycle repeats until Codex approves.
 
@@ -29,6 +29,16 @@ Each round:
 3. If Codex says APPROVED, the loop ends
 4. Otherwise, feedback goes back to Claude Code for revision
 5. Repeat until approved or max rounds reached
+
+**Use cases:**
+- Architecture design review
+- Refactoring plan feasibility checks
+- Code implementation review
+- Anything that benefits from a "second pair of eyes"
+
+**Two ways to use:**
+- `/loopwise` — Slash command inside Claude Code (recommended)
+- `loopwise` — Standalone shell command
 
 ## Prerequisites
 
