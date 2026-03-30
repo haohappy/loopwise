@@ -89,6 +89,12 @@ cp loopwise/.claude/commands/loopwise.md ~/.claude/commands/
 
 这是最方便的方式 — Claude Code 直接在当前会话中驱动循环，调用 Codex 审查、读取反馈、就地修改，无需额外进程。
 
+**截图：review 循环运行实况**
+
+<img src="assets/screenshot1.png" alt="Loopwise Round 1 - Codex 审查与 Claude Code 修改">
+
+<img src="assets/screenshot2.png" alt="Loopwise Round 2 - 继续审查与修复">
+
 ### 方式二：独立 shell 命令
 
 从终端作为独立进程运行：
@@ -126,6 +132,30 @@ loopwise plan --max-rounds 10 --verbose "设计一个实时通知系统"
 | `--timeout` | `LOOPWISE_TIMEOUT` | 300 | 每次 CLI 调用超时（秒） |
 | `--verbose` | `LOOPWISE_VERBOSE` | false | 显示调试输出 |
 
+### `/loopwise` 自动授权权限
+
+在 Claude Code 中运行 `/loopwise` 时，可能会被要求确认每个 Bash 命令。将以下内容添加到 `~/.claude/settings.json` 可跳过这些确认：
+
+```json
+{
+  "permissions": {
+    "allow": [
+      "Bash(cat /tmp/loopwise*)",
+      "Bash(cat */tmp/loopwise*)",
+      "Bash(rm -f /tmp/loopwise*)",
+      "Bash(shasum *)",
+      "Bash(mkdir -p .loopwise*)",
+      "Bash(*codex exec*)",
+      "Bash(cd *codex exec*)",
+      "Write(/tmp/loopwise*)",
+      "Read(/tmp/loopwise*)"
+    ]
+  }
+}
+```
+
+这些规则允许 `/loopwise` 使用的特定工具调用。如果你已有其他权限规则，将这些条目合并到现有的 `permissions.allow` 数组中即可。
+
 ## 产物输出
 
 每次会话在 `.loopwise/` 下创建一个带时间戳的目录：
@@ -145,8 +175,10 @@ loopwise plan --max-rounds 10 --verbose "设计一个实时通知系统"
 
 评审循环结束后，Loopwise 会在当前工作目录自动生成结构化报告：
 
-- Plan 模式：`PLAN_REVIEW_REPORT.md`
-- Code 模式：`CODE_REVIEW_REPORT.md`
+- Plan 模式：`PLAN_REVIEW_REPORT_DD-MM-YYYY.md`
+- Code 模式：`CODE_REVIEW_REPORT_DD-MM-YYYY.md`
+
+例如：`CODE_REVIEW_REPORT_30-03-2026.md`。同一天多次评审会自动加序号：`CODE_REVIEW_REPORT_30-03-2026_2.md`。
 
 报告包含：
 - 评审元数据（模式、状态、总轮数、日期、使用的模型）
@@ -193,12 +225,57 @@ loopwise plan --max-rounds 10 --verbose "设计一个实时通知系统"
 - **文件已变** → 正常开始新一轮 review
 - **强制重新审查**：使用 `--force` 跳过历史检查
 
-## 使用建议
+## 最佳实践
 
-- **计划审查**：提供详细的需求描述，让 Claude Code 生成完整的计划，Codex 才有足够的上下文进行评估。
-- **代码审查**：使用 `--file` 指向具体文件，进行聚焦审查。
-- **审查严格度**：编辑 `loopwise.sh` 中的 review prompt 来调节 Codex 的审查标准。可以更严格（"只有完全没有问题才能通过"）或更宽松（"整体方案合理即可通过"）。
-- **成本控制**：使用 `LOOPWISE_CODEX_MODEL=gpt-4.1-mini` 或 `LOOPWISE_MAX_ROUNDS=3` 来降低实验阶段的 API 开销。
+### 文件组织
+
+把计划写成 Markdown 文件放到项目 `docs/` 目录。好处：
+- 可以版本控制
+- 每轮修改有 git diff
+- 团队可以看到演进过程
+
+### 模型选择
+
+- **计划审查：** 用 `gpt-5.4`（默认，推理能力强）
+- **代码审查：** 也用 `gpt-5.4`（能结合项目上下文）
+- 切换模型：`/loopwise plan --model o3 --file docs/plan.md`
+
+### 验证后再修改
+
+Codex 可能会产生幻觉或误读上下文。Claude Code 会独立验证每个反馈点——检查问题是否真实存在。不存在的反馈会在报告中标注为已驳回，而不是盲目执行。
+
+### 每轮只改 Codex 指出的问题
+
+不要过度修改。每轮只针对已验证的反馈点改，否则：
+- 可能引入新问题
+- 难以追踪改了什么
+- Codex 下一轮可能因为上下文变化给出不相关反馈
+
+### 每轮提交
+
+每轮 Codex 反馈修复后都 commit + push：
+
+```bash
+git commit -m "Refactoring plan v3: fix Codex round 2 feedback (7 issues)"
+```
+
+这样每个版本都有记录，团队可以 review 演进过程。
+
+### 知道何时停止
+
+- **APPROVED** — Codex 通过，可以开工
+- **Round 3-4 反馈进入操作细节** — 架构已稳，可以开工
+- **Round 5 仍有架构级问题** — 可能需要重新思考方向
+
+> 对于复杂系统，不要追求 APPROVED——追求的是"反馈层级从架构降到实现"。
+
+### 审查严格度
+
+编辑 `loopwise.sh` 中的 review prompt 来调节 Codex 的审查标准。可以更严格（"只有完全没有问题才能通过"）或更宽松（"整体方案合理即可通过"）。
+
+### 成本控制
+
+使用 `LOOPWISE_CODEX_MODEL=gpt-4.1-mini` 或 `LOOPWISE_MAX_ROUNDS=3` 来降低实验阶段的 API 开销。
 
 ## 许可证
 
