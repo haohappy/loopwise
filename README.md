@@ -40,6 +40,10 @@ Each round:
 - `/loopwise` — Slash command inside Claude Code (recommended)
 - `loopwise` — Standalone shell command
 
+## Tutorial
+
+See [docs/TUTORIAL_EN.md](docs/TUTORIAL_EN.md) for a step-by-step guide with a real-world review example. Also available in [Chinese](docs/TUTORIAL.md).
+
 ## Prerequisites
 
 ```bash
@@ -142,10 +146,6 @@ Each session creates a timestamped directory under `.loopwise/`:
     final.md                    # Final version
     status.txt                  # APPROVED or MAX_ROUNDS_REACHED
 ```
-
-## Tutorial
-
-See [docs/TUTORIAL_EN.md](docs/TUTORIAL_EN.md) for a step-by-step guide with a real-world review example. Also available in [Chinese](docs/TUTORIAL.md).
 
 ## Tips
 
