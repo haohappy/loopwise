@@ -1,5 +1,9 @@
 [中文文档](README_CN.md)
 
+<div align="center">
+  <img src="assets/logo.png" width="320" alt="Loopwise Logo">
+</div>
+
 # loopwise
 
 Automated review loop between Claude Code and Codex CLI.
