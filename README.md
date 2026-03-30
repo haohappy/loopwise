@@ -154,6 +154,8 @@ When running `/loopwise` inside Claude Code, you may be prompted to confirm each
       "Bash(rm -f /tmp/loopwise*)",
       "Bash(shasum *)",
       "Bash(mkdir -p .loopwise*)",
+      "Bash(*codex exec*)",
+      "Bash(cd *codex exec*)",
       "Write(/tmp/loopwise*)",
       "Read(/tmp/loopwise*)"
     ]
