@@ -170,7 +170,7 @@ The report includes:
 
 Example:
 
-```markdown
+
 # Codex Plan Review Report
 
 - **Mode**: plan
@@ -197,7 +197,7 @@ Example:
 
 ## Final result
 Plan approved after 3 rounds.
-```
+
 
 ## Review History
 
