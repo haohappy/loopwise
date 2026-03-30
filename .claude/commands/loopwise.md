@@ -78,11 +78,14 @@ Three cases, checked in this order:
 
 ### Step 2: Send to Codex for review
 
-**IMPORTANT: Execute each step as a SEPARATE Bash tool call. Do NOT combine them into one multi-line command.** This ensures permissions auto-approve correctly.
+**CRITICAL RULES for this step:**
+1. **NEVER use `$()` command substitution in any Bash call.** It triggers a security prompt that blocks automation.
+2. **NEVER combine multiple commands into one Bash call.** Each step must be its own tool call.
+3. **Use Write tool for creating files, Read tool for reading files.** Only use Bash for the codex exec call and cleanup.
 
-**Step 2a:** Use the Write tool to save the current content to a temp file (e.g., `/tmp/loopwise-content.md`).
+**Step 2a:** Use the **Write** tool to save the current content to `/tmp/loopwise-content.md`.
 
-**Step 2b:** Build the review prompt (plan or code criteria, plus the content) and use the Write tool to save it to another temp file (e.g., `/tmp/loopwise-prompt.md`).
+**Step 2b:** Build the full review prompt text (criteria + the content to review appended at the end) and use the **Write** tool to save it to `/tmp/loopwise-prompt.md`.
 
 For plan mode, the review prompt should evaluate: completeness, technical feasibility, edge cases, architecture, security.
 For code mode, evaluate: correctness, performance, error handling, readability, security, testing.
@@ -91,14 +94,16 @@ Always include this instruction in the prompt:
 > If solid and ready, respond with EXACTLY this on the first line: APPROVED
 > If improvements are needed, provide specific, actionable feedback. Do NOT say APPROVED if you have any suggestions.
 
-**Step 2c:** Call Codex in a single Bash command:
+Append the full content to review at the end of the prompt file (after `=== PLAN/CODE TO REVIEW ===`). This way only one file needs to be piped to codex.
+
+**Step 2c:** Call Codex with a single simple Bash command (no `$()`, no `mktemp`, no multi-line):
 ```bash
-cat /tmp/loopwise-prompt.md /tmp/loopwise-content.md | codex exec - --model <codex_model> --sandbox read-only --skip-git-repo-check --ephemeral -o /tmp/loopwise-output.md 2>/dev/null && cat /tmp/loopwise-output.md
+cat /tmp/loopwise-prompt.md | codex exec - --model <codex_model> --sandbox read-only --skip-git-repo-check --ephemeral -o /tmp/loopwise-output.md 2>/dev/null
 ```
 
-**Step 2d:** Read the output from `/tmp/loopwise-output.md` using the Read tool.
+**Step 2d:** Use the **Read** tool to read `/tmp/loopwise-output.md` and get the review result.
 
-**Step 2e:** Clean up temp files:
+**Step 2e:** Clean up with a single Bash call:
 ```bash
 rm -f /tmp/loopwise-content.md /tmp/loopwise-prompt.md /tmp/loopwise-output.md
 ```
