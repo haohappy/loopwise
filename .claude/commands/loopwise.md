@@ -1,23 +1,28 @@
-# Loopwise — Automated Review Loop
+# Loopwise — Automated Review Loop (v2)
 
-Automated review loop: you (Claude Code) produce a plan or code, then Codex reviews it, you revise based on feedback, and the cycle repeats until Codex approves.
+Automated review loop: you (Claude Code) produce a plan or code, then Codex reviews it with structured JSON output, you verify and revise based on feedback, and the cycle repeats until Codex approves.
 
 ## Arguments
 
-$ARGUMENTS should be in format: `<mode> [--file <path>] [prompt or instructions]`
+$ARGUMENTS should be in format: `<mode> [--file <path>] [flags] [prompt or instructions]`
 
 - **mode**: `plan` or `code`
 - **--file \<path\>**: Optional. Path to an existing file to use as initial content for review (skip generation).
+- **--adversarial**: Optional. Enable adversarial review mode (skeptical stance, deeper scrutiny).
+- **--max-rounds \<n\>**: Optional. Limit review rounds. Default: no limit.
+- **--model \<model\>**: Optional. Codex model. Default: `gpt-5.4`.
+- **--force**: Optional. Bypass review history check.
 - **prompt**: What to generate or review. If both `--file` and prompt are omitted, review the work you just produced in this conversation.
 
 Examples:
 ```
-/loopwise plan Design a REST API for user management with JWT auth
-/loopwise code Implement a rate limiter middleware for Express
 /loopwise plan --file docs/plan.md
-/loopwise code --file src/auth.ts Refactor to use passport.js
-/loopwise plan              (review the plan you just wrote in this conversation)
-/loopwise code              (review the code you just wrote in this conversation)
+/loopwise code --file src/auth.ts
+/loopwise plan --file docs/plan.md --adversarial
+/loopwise code --file src/auth.ts --adversarial focus on auth and data isolation
+/loopwise plan Design a REST API for user management with JWT auth
+/loopwise plan
+/loopwise code
 ```
 
 ## Instructions
@@ -28,11 +33,12 @@ You are now entering an automated review loop with Codex. Follow these steps pre
 
 Extract from $ARGUMENTS:
 1. `mode` — first word: "plan" or "code"
-2. `file_path` — if the remaining text contains `--file <path>`, extract the path and remove it
-3. `max_rounds` — if the remaining text contains `--max-rounds <n>`, extract the number and remove it. Default: no limit (loop until approved)
-4. `codex_model` — if the remaining text contains `--model <model>`, extract the model name and remove it. Default: `gpt-5.4`
-5. `force` — if the remaining text contains `--force`, set to true and remove it. Default: false. Bypasses review history check.
-6. `prompt` — everything left after extracting all flags above
+2. `file_path` — if `--file <path>` present, extract and remove
+3. `adversarial` — if `--adversarial` present, set true and remove. Default: false
+4. `max_rounds` — if `--max-rounds <n>` present, extract and remove. Default: no limit
+5. `codex_model` — if `--model <model>` present, extract and remove. Default: `gpt-5.4`
+6. `force` — if `--force` present, set true and remove. Default: false
+7. `prompt` — everything remaining after extracting all flags
 
 ### Step 0.5: Check review history (only when `--file` is provided)
 
@@ -42,173 +48,288 @@ If `file_path` was provided, check for a previous review of the same file with t
 
 1. Compute the file's content hash:
    ```bash
-   FILE_HASH=$(shasum -a 256 "<file_path>" | cut -d' ' -f1)
+   shasum -a 256 "<file_path>" | cut -d' ' -f1
    ```
 
-2. Check if `.loopwise/history.json` exists and contains a record for this file+hash. The history file is a JSON array:
-   ```json
-   [
-     {
-       "file": "src/auth.ts",
-       "hash": "abc123...",
-       "status": "APPROVED",
-       "date": "2026-03-29 17:30",
-       "rounds": 3,
-       "report": ".loopwise/20260329_173022_12345/REVIEW_REPORT.md",
-       "last_feedback": null
-     }
-   ]
-   ```
+2. Check if `.loopwise/history.json` exists and contains a record for this file+hash.
 
 3. **If a matching record exists (same file path AND same hash)**:
-   - If `status` is `APPROVED`: Tell the user **"This file was already reviewed and approved on {date} ({rounds} rounds). Content is unchanged (hash: {hash:.8}). Skipping review."** and show them the path to the previous report. **Stop here — do not start a new review loop.**
-   - If `status` is `MAX_ROUNDS_REACHED`: Tell the user **"This file was previously reviewed on {date} but did not reach approval after {rounds} rounds. Last feedback was:"** then show `last_feedback`. Ask the user if they want to: (a) resume with the previous feedback as context, or (b) start a fresh review.
+   - If `status` is `APPROVED`: Tell the user **"This file was already reviewed and approved on {date} ({rounds} rounds). Content is unchanged (hash: {hash:.8}). Skipping review."** and show the path to the previous report. **Stop here.**
+   - If `status` is `MAX_ROUNDS_REACHED` or `DEGRADED`: Tell the user about the previous review and ask if they want to resume or start fresh.
 
-4. **If no matching record** (new file or content changed): proceed normally.
+4. **If no matching record**: proceed normally.
 
 ### Step 1: Get initial content
 
 Three cases, checked in this order:
 
-1. **`--file` was provided**: Read the file at `file_path` using the Read tool. The file contents become the **initial content**. If a prompt was also given, treat it as additional instructions for Codex's review (include it in the review prompt context).
-
+1. **`--file` was provided**: Read the file using the Read tool. The file contents become the **initial content**.
 2. **A prompt was given (no --file)**: Generate the plan or code as requested. This is your **initial content**.
-
-3. **Neither --file nor prompt**: Gather the most recent plan or code you produced in this conversation as the initial content.
+3. **Neither --file nor prompt**: Gather the most recent plan or code you produced in this conversation.
 
 ### Step 2: Send to Codex for review
 
 **CRITICAL RULES for this step:**
-1. **NEVER use `$()` command substitution in any Bash call.** It triggers a security prompt that blocks automation.
-2. **NEVER combine multiple commands into one Bash call.** Each step must be its own tool call.
+1. **NEVER use `$()` command substitution in any Bash call.** It triggers a security prompt.
+2. **NEVER combine multiple commands into one Bash call.**
 3. **Use Write tool for creating files, Read tool for reading files.** Only use Bash for the codex exec call and cleanup.
 
 **Step 2a:** Use the **Write** tool to save the current content to `/tmp/loopwise-content.md`.
 
-**Step 2b:** Build the full review prompt text (criteria + the content to review appended at the end) and use the **Write** tool to save it to `/tmp/loopwise-prompt.md`.
+**Step 2b:** Build the review prompt and use the **Write** tool to save it to `/tmp/loopwise-prompt.md`.
 
-For plan mode, the review prompt should evaluate: completeness, technical feasibility, edge cases, architecture, security.
-For code mode, evaluate: correctness, performance, error handling, readability, security, testing.
+The prompt MUST include the JSON output contract. Use the appropriate template:
 
-Always include this instruction in the prompt:
-> If solid and ready, respond with EXACTLY this on the first line: APPROVED
-> If improvements are needed, provide specific, actionable feedback. Do NOT say APPROVED if you have any suggestions.
+---
 
-Append the full content to review at the end of the prompt file (after `=== PLAN/CODE TO REVIEW ===`). This way only one file needs to be piped to codex.
+**If `adversarial` is false (standard review):**
 
-**Step 2c:** Call Codex with a single simple Bash command (no `$()`, no `mktemp`, no multi-line):
+For plan mode:
+```
+<task>Review this development plan for production readiness.</task>
+
+<output_contract>
+Respond with ONLY a JSON object (no other text). Schema:
+{
+  "schema_version": 1,
+  "verdict": "approve" | "needs_attention",
+  "summary": "one-line ship/no-ship assessment",
+  "findings": [
+    {
+      "severity": "critical" | "high" | "medium" | "low",
+      "title": "short title",
+      "body": "detailed explanation",
+      "file": "file path if applicable, else null",
+      "line_start": null,
+      "confidence": 0.0-1.0,
+      "recommendation": "specific fix"
+    }
+  ],
+  "next_steps": ["actionable item"]
+}
+Required: schema_version, verdict, summary, findings.
+Required per finding: severity, title, body, confidence, recommendation.
+findings may be empty [] if verdict is approve.
+</output_contract>
+
+<grounding>Ground every claim in the provided content. Label inferences explicitly.</grounding>
+
+<completeness>Review the ENTIRE content. Do not stop early. Check for second-order failures after initial findings.</completeness>
+
+Evaluate: completeness, technical feasibility, edge cases, architecture, security.
+
+=== PLAN TO REVIEW ===
+```
+
+For code mode, replace evaluation criteria with: correctness, performance, error handling, readability, security, testing. Use `=== CODE TO REVIEW ===`.
+
+---
+
+**If `adversarial` is true:**
+
+```
+<task>Adversarial review: break confidence in this {plan/code}.</task>
+
+<stance>
+Default to skepticism.
+Assume the change can fail in subtle, high-cost, or user-visible ways until the evidence says otherwise.
+Do not give credit for good intent, partial fixes, or likely follow-up work.
+</stance>
+
+<attack_surface>
+Check in priority order:
+1. Auth/Trust: permissions, tenant isolation, trust boundaries
+2. Data: loss, corruption, duplication, irreversibility
+3. Resilience: rollback, retries, partial failure, idempotency
+4. Concurrency: race conditions, ordering, stale state, re-entrancy
+5. Edge Cases: empty-state, null, timeout, degraded dependencies
+6. Evolution: version skew, schema drift, migrations, compatibility
+7. Observability: gaps that hide failure or make recovery harder
+</attack_surface>
+
+<output_contract>
+Respond with ONLY a JSON object (no other text). Schema:
+{
+  "schema_version": 1,
+  "verdict": "approve" | "needs_attention",
+  "summary": "one-line adversarial assessment",
+  "findings": [
+    {
+      "severity": "critical" | "high" | "medium" | "low",
+      "title": "short title",
+      "body": "What fails? Why? Impact?",
+      "file": "file path if applicable, else null",
+      "line_start": null,
+      "confidence": 0.0-1.0,
+      "recommendation": "specific fix"
+    }
+  ],
+  "next_steps": ["actionable item"]
+}
+Required: schema_version, verdict, summary, findings.
+Required per finding: severity, title, body, confidence, recommendation.
+Report only material findings. No style or naming feedback.
+Use "approve" only when no substantive risk remains.
+</output_contract>
+
+<grounding>Ground every claim in the provided content. Label inferences explicitly.</grounding>
+
+<completeness>Complete the full adversarial review. Do not stop early. After initial findings, check for second-order failures.</completeness>
+```
+
+If the user provided additional focus text after `--adversarial`, prepend it:
+```
+<user_focus>User wants special attention on: {focus text}</user_focus>
+```
+
+---
+
+Append the full content to review at the end of the prompt file (after `=== PLAN/CODE TO REVIEW ===`).
+
+**Step 2c:** Call Codex with a single simple Bash command:
 ```bash
 cat /tmp/loopwise-prompt.md | codex exec - --model <codex_model> --sandbox read-only --skip-git-repo-check --ephemeral -o /tmp/loopwise-output.md 2>/dev/null
 ```
 
-**Step 2d:** Use the **Read** tool to read `/tmp/loopwise-output.md` and get the review result.
+**Step 2d:** Use the **Read** tool to read `/tmp/loopwise-output.md`.
 
-**Step 2e:** Clean up with a single Bash call:
+**Step 2e:** Clean up:
 ```bash
 rm -f /tmp/loopwise-content.md /tmp/loopwise-prompt.md /tmp/loopwise-output.md
 ```
 
-### Step 3: Check approval
+### Step 3: Parse and check verdict
 
-Read the Codex review output. If the first line contains "APPROVED" (case-insensitive), the loop ends. Report to the user that Codex has approved.
+Parse the Codex output as JSON. Apply this fallback chain:
 
-### Step 4: Revise based on feedback
+1. **Try direct JSON parse** of the full output
+2. **Extract JSON block** if wrapped in markdown fences (```json...```) or find the outermost `{...}`
+3. **Retry once**: if parse fails, re-run Step 2 with the same content but append to the prompt: "You MUST respond with valid JSON only, no markdown fences, no other text."
+4. **Synthesize degraded payload** if retry also fails:
+   ```json
+   {
+     "schema_version": 1,
+     "verdict": "degraded",
+     "summary": "Codex returned unstructured text (JSON parse failed)",
+     "findings": [{
+       "severity": "medium",
+       "title": "Unstructured feedback",
+       "body": "<raw Codex output>",
+       "confidence": 0.5,
+       "recommendation": "Review the raw feedback manually"
+     }],
+     "next_steps": ["Re-run review or manually inspect Codex output"]
+   }
+   ```
 
-If NOT approved, show the user a brief summary of Codex's feedback (first 5 lines), then **independently verify each feedback point before acting on it**:
+After parsing, validate `schema_version`. If missing or != 1, force `verdict` to `degraded`.
 
-1. For each issue Codex raised, check whether the problem actually exists in the current content (read the relevant code/section, trace the logic, verify the claim).
-2. If verified — fix it.
-3. If the issue does not actually exist (Codex hallucinated or misread the context) — skip it and note in the report that it was dismissed with a brief reason.
-4. If uncertain — err on the side of fixing, but mark it as "unverified fix" in the report.
+**Three-way verdict branch:**
+- **`approve`** → Loop ends. Go to Step 6 (report). Status: APPROVED.
+- **`needs_attention`** → Go to Step 4 (verify and revise).
+- **`degraded`** → **Loop terminates immediately.** Do NOT revise. Go to Step 6 (report). Status: DEGRADED. Never make code/plan changes based on a degraded payload.
 
-Do NOT blindly apply all feedback. Codex can make mistakes. Your job is to be the engineer who validates before changing.
+### Step 4: Verify and revise based on findings
 
-This revised version becomes the new current content.
+Show the user a summary of Codex's findings sorted by severity (critical first).
+
+For EACH finding, **independently verify before acting**:
+
+1. **Read the relevant section** of the content. Check whether the issue actually exists.
+2. If **verified** — fix it. Set finding disposition to `verified`.
+3. If the issue **does not exist** (hallucination/misread) — skip it. Set disposition to `dismissed` with a brief reason.
+4. If **uncertain** — fix it but set disposition to `unverified_fix`.
+
+**Confidence is for display/ranking only. NEVER suppress critical or high findings based on confidence.**
+
+Do NOT blindly apply all feedback. Your job is to be the engineer who validates before changing.
+
+The revised version becomes the new current content.
 
 ### Step 5: Loop
 
 Go back to Step 2 with the revised content. Repeat until:
-- Codex outputs APPROVED, OR
-- `max_rounds` was set and the round count reaches it (no default limit — loop continues until approved unless explicitly capped)
-
-Use the parsed `codex_model` variable (default `gpt-5.4`) in the codex exec command. Use the parsed `max_rounds` variable to control loop termination.
+- Verdict is `approve`, OR
+- Verdict is `degraded` (terminates immediately), OR
+- `max_rounds` reached (if set)
 
 ### Step 6: Write Review Report
 
-When the loop ends, write a **Review Report** file to the current working directory. The filename includes the mode and today's date (DD-MM-YYYY format):
-- Plan mode: `PLAN_REVIEW_REPORT_DD-MM-YYYY.md`
-- Code mode: `CODE_REVIEW_REPORT_DD-MM-YYYY.md`
+Write a report to the current working directory. Filename: `{MODE}_REVIEW_REPORT_DD-MM-YYYY.md` (e.g., `PLAN_REVIEW_REPORT_31-03-2026.md`). If file exists, append counter: `_2.md`, `_3.md`.
 
-For example: `CODE_REVIEW_REPORT_30-03-2026.md`
-
-If a file with that name already exists (same mode, same day), append a counter: `CODE_REVIEW_REPORT_30-03-2026_2.md`, `CODE_REVIEW_REPORT_30-03-2026_3.md`, etc.
-
-The report must use this exact format:
+Report format:
 
 ```markdown
-# Codex Plan Review Report / Codex Code Review Report
+# Codex {Plan/Code} Review Report
 
 - **Mode**: plan / code
-- **Status**: APPROVED / MAX_ROUNDS_REACHED
+- **Adversarial**: yes / no
+- **Status**: APPROVED / MAX_ROUNDS_REACHED / DEGRADED
 - **Total rounds**: N
 - **Date**: YYYY-MM-DD HH:MM
 - **Models**: Claude Code (claude-opus-4-6) ↔ Codex (gpt-5.4)
 - **Input**: (prompt text, or file path if --file was used)
 
-## Round-by-round summary
+## Statistics
+- Total findings: N
+- By severity: X critical, X high, X medium, X low
+- Average confidence: 0.XX
+- Disposition: X verified, X dismissed, X unverified_fix, X unprocessed
 
-### Round 1: Initial generation
-- **Action**: Claude Code generated initial [plan/code]
-
-### Round 2: Codex review #1
-- **Verdict**: FEEDBACK
-- **Key feedback**:
-  - (bullet point summary of each major feedback item)
-- **Revision**: Claude Code addressed feedback:
-  - (bullet point summary of what was changed)
-
-### Round 3: Codex review #2
-- **Verdict**: APPROVED
-- **Comments**: (any final comments from Codex, or "No further issues found")
-
-## Final result
-
-(State whether the plan/code was approved, or if max rounds were reached with remaining issues.)
+```
+Critical  ██ X
+High      ████ X
+Medium    ███ X
+Low       ███ X
 ```
 
-Adapt the number of round sections to match the actual number of rounds. Each round section should capture the **key feedback points** from Codex and the **specific changes** Claude Code made in response. Be concise but complete — someone reading only this report should understand what happened.
+## Round-by-round summary
 
-After writing the file, tell the user the exact filename the report has been saved to.
+### Round 1: Codex review #1
+- **Verdict**: needs_attention
+- **Findings** (N issues):
+  - [critical] Title (confidence: 0.95) — **verified**, fixed
+  - [high] Title (confidence: 0.88) — **dismissed**: reason
+  - [medium] Title (confidence: 0.72) — **verified**, fixed
+- **Revision summary**:
+  - Changed X to Y
+  - Added Z
+
+### Round N: Codex review #N
+- **Verdict**: approve
+- **Comments**: (final Codex assessment)
+
+## Final result
+(Whether approved, max rounds reached with remaining issues, or degraded with reason.)
+```
+
+After writing, tell the user the exact filename.
 
 ### Step 7: Update review history (only when `--file` was provided)
 
-If `file_path` was provided, update `.loopwise/history.json`:
-
-1. Compute the final file hash: `shasum -a 256 "<file_path>" | cut -d' ' -f1`
-2. Read the existing `.loopwise/history.json` (or start with `[]` if it doesn't exist)
-3. Remove any existing record with the same `file` path (only keep the latest review per file)
-4. Append a new record:
+1. Compute final file hash
+2. Read `.loopwise/history.json` (or `[]`)
+3. Remove existing record for same file path
+4. Append new record:
    ```json
    {
      "file": "<file_path>",
      "hash": "<final_hash>",
-     "status": "APPROVED" or "MAX_ROUNDS_REACHED",
-     "date": "<current datetime>",
-     "rounds": <total_rounds>,
-     "report": "REVIEW_REPORT.md",
-     "last_feedback": "<last Codex feedback if not approved, null if approved>"
+     "status": "APPROVED" | "MAX_ROUNDS_REACHED" | "DEGRADED",
+     "date": "<datetime>",
+     "rounds": <N>,
+     "report": "<report_filename>",
+     "last_feedback": "<last findings JSON if not approved, null if approved>"
    }
    ```
-5. Write the updated array back to `.loopwise/history.json`
-
-Use `jq` via Bash to read/write the JSON file. Create `.loopwise/` directory if it doesn't exist.
+5. Write back to `.loopwise/history.json`
 
 ## Important rules
 
-- **Show progress**: At the start of each round, tell the user which round you're on (e.g., "Round 2/5: Sending to Codex for review...")
-- **Be transparent**: Show a brief preview of Codex's feedback each round
-- **Preserve context**: Each revision should build on the previous version, not start from scratch
-- **Verify before fixing**: Codex can hallucinate or misread context. Independently verify each feedback point actually exists before changing anything. Dismiss invalid feedback with a brief reason in the report.
-- **Don't over-revise**: Only change what Codex flagged and you verified, don't rewrite everything each round
-- **Codex model**: Default is `gpt-5.4`. User can specify a different model by adding `--model <model>` in their prompt
-- **Max rounds**: No default limit — loop runs until Codex approves. User can specify `--max-rounds <n>` to cap the iterations
+- **Show progress**: "Round N: Sending to Codex for review (adversarial)..." or "Round N: Sending to Codex for review..."
+- **Be transparent**: Show findings summary each round (severity counts + top issues)
+- **Verify before fixing**: Codex can hallucinate. Independently verify each finding. Dismiss invalid ones with reason.
+- **Don't over-revise**: Only fix verified findings, don't rewrite everything
+- **Confidence is display-only**: Never suppress critical/high findings based on confidence
+- **Degraded = terminal**: Never revise based on degraded output
+- **Adversarial mode**: When `--adversarial` is set, tell the user at the start: "Adversarial mode enabled — Codex will apply skeptical scrutiny."
