@@ -59,38 +59,57 @@ brew install jq                            # JSON processor (for standalone mode
 Use `/loopwise` directly within a Claude Code session. No extra install needed — just copy the command file:
 
 ```bash
-# Install the slash command (one-time setup)
-cp .claude/commands/loopwise.md ~/.claude/commands/
-
-# Or clone and copy
+# Install all slash commands (one-time setup)
 git clone https://github.com/haohappy/loopwise.git
-cp loopwise/.claude/commands/loopwise.md ~/.claude/commands/
+cp loopwise/.claude/commands/loopwise*.md ~/.claude/commands/
 ```
+
+This installs three commands: `/loopwise`, `/loopwise-gate`, and `/loopwise-status`.
 
 Then inside any Claude Code session:
 
 ```
-# Generate from prompt, then review loop
-> /loopwise plan Design a REST API for user management with JWT auth
-> /loopwise code Implement a rate limiter middleware for Express
-
-# Review an existing file  
-# using --file the best practice, the targeted review will be done efficiently.
-
+# Review an existing file (most common)
 > /loopwise plan --file docs/plan.md
 > /loopwise code --file src/auth.ts
 
-# Review an existing file with additional instructions
-# This is more for senior developers who have specific needs
-> /loopwise plan --file docs/plan.md Add error handling details
-> /loopwise code --file src/auth.ts Refactor to use middleware pattern
+# Adversarial review — skeptical stance, deeper scrutiny
+> /loopwise plan --file docs/plan.md --adversarial
+> /loopwise code --file src/auth.ts --adversarial focus on auth and data isolation
+
+# Background review — non-blocking, check status later
+> /loopwise plan --file docs/big-plan.md --background
+> /loopwise-status
+
+# Quick diff review before committing
+> /loopwise-gate
+> /loopwise-gate focus on input validation
+
+# Generate from prompt, then review loop
+> /loopwise plan Design a REST API for user management with JWT auth
+> /loopwise code Implement a rate limiter middleware for Express
 
 # Review what you just wrote in this conversation (no args)
 > /loopwise plan
 > /loopwise code
 ```
 
-This is the most convenient way — Claude Code drives the loop directly, calling Codex for review, reading feedback, and revising in-session. No separate process needed.
+### Three slash commands
+
+| Command | Purpose |
+|---------|---------|
+| `/loopwise` | Full review loop with revisions. Supports `--file`, `--adversarial`, `--background`, `--max-rounds`, `--model`, `--force` |
+| `/loopwise-gate` | One-shot diff review before committing. Advisory WARNING/OK output. |
+| `/loopwise-status` | Check background review job status. |
+
+### v2 features
+
+- **Structured JSON output** — Codex returns findings with severity, confidence, and recommendations (not free text)
+- **Adversarial mode** (`--adversarial`) — Skeptical review checking 7 attack surfaces: auth, data, resilience, concurrency, edge cases, evolution, observability
+- **Review Gate** (`/loopwise-gate`) — Quick Codex review of your git diff before committing
+- **Background execution** (`--background`) — Non-blocking review, check with `/loopwise-status`
+- **Verify before fixing** — Claude Code independently verifies each Codex finding before applying changes
+- **Disposition tracking** — Each finding marked as verified, dismissed, or unverified_fix in the report
 
 **Screenshot: Review loop in action**
 

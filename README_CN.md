@@ -59,35 +59,57 @@ brew install jq                            # JSON 处理器（独立模式需要
 在任何 Claude Code 会话中直接使用 `/loopwise`，只需复制命令文件即可：
 
 ```bash
-# 安装斜杠命令（一次性设置）
-cp .claude/commands/loopwise.md ~/.claude/commands/
-
-# 或者克隆后复制
+# 安装所有斜杠命令（一次性设置）
 git clone https://github.com/haohappy/loopwise.git
-cp loopwise/.claude/commands/loopwise.md ~/.claude/commands/
+cp loopwise/.claude/commands/loopwise*.md ~/.claude/commands/
 ```
+
+安装后有三个命令可用：`/loopwise`、`/loopwise-gate`、`/loopwise-status`。
 
 然后在 Claude Code 会话中：
 
 ```
-# 从 prompt 生成，然后进入 review 循环
-> /loopwise plan Design a REST API for user management with JWT auth
-> /loopwise code Implement a rate limiter middleware for Express
-
-# 审查已有文件
+# 审查已有文件（最常用）
 > /loopwise plan --file docs/plan.md
 > /loopwise code --file src/auth.ts
 
-# 审查已有文件并附加指令
-> /loopwise plan --file docs/plan.md 补充错误处理细节
-> /loopwise code --file src/auth.ts 重构为中间件模式
+# 对抗性审查 — 怀疑者视角，深度审查
+> /loopwise plan --file docs/plan.md --adversarial
+> /loopwise code --file src/auth.ts --adversarial 重点关注认证和数据隔离
+
+# 后台审查 — 不阻塞，稍后查看结果
+> /loopwise plan --file docs/big-plan.md --background
+> /loopwise-status
+
+# 提交前快速 diff 审查
+> /loopwise-gate
+> /loopwise-gate 重点关注输入校验
+
+# 从 prompt 生成并审查
+> /loopwise plan Design a REST API for user management with JWT auth
+> /loopwise code Implement a rate limiter middleware for Express
 
 # 审查当前对话中刚写的内容（不传参数）
 > /loopwise plan
 > /loopwise code
 ```
 
-这是最方便的方式 — Claude Code 直接在当前会话中驱动循环，调用 Codex 审查、读取反馈、就地修改，无需额外进程。
+### 三个斜杠命令
+
+| 命令 | 用途 |
+|------|------|
+| `/loopwise` | 完整 review 循环，支持 `--file`、`--adversarial`、`--background`、`--max-rounds`、`--model`、`--force` |
+| `/loopwise-gate` | 提交前快速 diff 审查，输出 WARNING/OK |
+| `/loopwise-status` | 查看后台 review 任务状态 |
+
+### v2 新功能
+
+- **结构化 JSON 输出** — Codex 返回带 severity、confidence、recommendation 的结构化反馈
+- **对抗性模式** (`--adversarial`) — 怀疑者视角审查，检查 7 个攻击面：认证、数据、韧性、并发、边界、演进、可观测性
+- **Review Gate** (`/loopwise-gate`) — 提交前快速审查 git diff
+- **后台执行** (`--background`) — 不阻塞当前工作，用 `/loopwise-status` 查看进度
+- **验证后再修改** — Claude Code 独立验证每个 Codex 发现后才修改
+- **Disposition 追踪** — 每个发现标记为 verified、dismissed 或 unverified_fix
 
 **截图：review 循环运行实况**
 
