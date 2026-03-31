@@ -9,6 +9,7 @@ $ARGUMENTS should be in format: `<mode> [--file <path>] [flags] [prompt or instr
 - **mode**: `plan` or `code`
 - **--file \<path\>**: Optional. Path to an existing file to use as initial content for review (skip generation).
 - **--adversarial**: Optional. Enable adversarial review mode (skeptical stance, deeper scrutiny).
+- **--background**: Optional. Run the first Codex review in the background. You'll be notified when it completes. Use `/loopwise-status` to check progress.
 - **--max-rounds \<n\>**: Optional. Limit review rounds. Default: no limit.
 - **--model \<model\>**: Optional. Codex model. Default: `gpt-5.4`.
 - **--force**: Optional. Bypass review history check.
@@ -21,6 +22,7 @@ Examples:
 /loopwise plan --file docs/plan.md --adversarial
 /loopwise code --file src/auth.ts --adversarial focus on auth and data isolation
 /loopwise plan Design a REST API for user management with JWT auth
+/loopwise plan --file docs/plan.md --background
 /loopwise plan
 /loopwise code
 ```
@@ -35,10 +37,11 @@ Extract from $ARGUMENTS:
 1. `mode` — first word: "plan" or "code"
 2. `file_path` — if `--file <path>` present, extract and remove
 3. `adversarial` — if `--adversarial` present, set true and remove. Default: false
-4. `max_rounds` — if `--max-rounds <n>` present, extract and remove. Default: no limit
-5. `codex_model` — if `--model <model>` present, extract and remove. Default: `gpt-5.4`
-6. `force` — if `--force` present, set true and remove. Default: false
-7. `prompt` — everything remaining after extracting all flags
+4. `background` — if `--background` present, set true and remove. Default: false
+5. `max_rounds` — if `--max-rounds <n>` present, extract and remove. Default: no limit
+6. `codex_model` — if `--model <model>` present, extract and remove. Default: `gpt-5.4`
+7. `force` — if `--force` present, set true and remove. Default: false
+8. `prompt` — everything remaining after extracting all flags
 
 ### Step 0.5: Check review history (only when `--file` is provided)
 
@@ -186,10 +189,43 @@ If the user provided additional focus text after `--adversarial`, prepend it:
 
 Append the full content to review at the end of the prompt file (after `=== PLAN/CODE TO REVIEW ===`).
 
-**Step 2c:** Call Codex with a single simple Bash command:
+**Step 2c:** Call Codex with a single simple Bash command.
+
+**If `background` is false (default — foreground):**
 ```bash
 cat /tmp/loopwise-prompt.md | codex exec - --model <codex_model> --sandbox read-only --skip-git-repo-check --ephemeral -o /tmp/loopwise-output.md 2>/dev/null
 ```
+
+**If `background` is true:**
+Only the FIRST Codex call runs in background. Tell the user: **"Review started in background. You'll be notified when it completes. Use `/loopwise-status` to check progress."**
+
+Run the Codex call using Bash with `run_in_background: true`:
+```bash
+cat /tmp/loopwise-prompt.md | codex exec - --model <codex_model> --sandbox read-only --skip-git-repo-check --ephemeral -o /tmp/loopwise-output.md 2>/dev/null
+```
+
+Before launching the background call, create a job record:
+```bash
+mkdir -p .loopwise/jobs
+```
+Then use the **Write** tool to create `.loopwise/jobs/loopwise-job-latest.json`:
+```json
+{
+  "status": "running",
+  "mode": "<mode>",
+  "file": "<file_path or null>",
+  "adversarial": <true/false>,
+  "started_at": "<ISO8601>",
+  "updated_at": "<ISO8601>",
+  "model": "<codex_model>",
+  "output_file": "/tmp/loopwise-output.md",
+  "prompt_file": "/tmp/loopwise-prompt.md"
+}
+```
+
+After the background command completes (you will be notified), continue with Step 2d as normal. When done, update the job record status to `completed` or `failed`.
+
+**Then stop here for background mode.** Do NOT enter the revision loop. Background mode only does a single Codex review pass and saves the result. The user can then review the output and decide whether to run a full foreground loop.
 
 **Step 2d:** Use the **Read** tool to read `/tmp/loopwise-output.md`.
 
