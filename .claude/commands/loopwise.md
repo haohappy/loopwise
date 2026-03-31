@@ -292,7 +292,7 @@ The revised version becomes the new current content.
 Go back to Step 2 with the revised content. Repeat until:
 - Verdict is `approve`, OR
 - Verdict is `degraded` (terminates immediately), OR
-- `max_rounds` reached (if set)
+- `max_rounds` reached — user-specified via `--max-rounds`, or **hard cap of 20 rounds** (whichever is lower). This prevents unbounded loops even if the user doesn't set a limit.
 
 ### Step 6: Write Review Report
 
