@@ -43,17 +43,21 @@ If both are empty (no changes), tell the user: "No changes detected. Nothing to 
 
 ### Step 2: Collect the diff
 
-Get the full diff content. Use a single Bash call:
+**CRITICAL: Use ONLY simple single-command Bash calls. NO `&&`, `||`, `;`, `{ }`, `$()`, `for` loops, or pipes (except the codex exec pipe). Use Read/Write tools for file content.**
+
+Get staged diff first (single Bash call):
 ```bash
 git diff --cached --diff-filter=d -- . ':!node_modules' ':!vendor' ':!*.min.js' ':!*.min.css' ':!package-lock.json' ':!yarn.lock' ':!pnpm-lock.yaml' ':!composer.lock' ':!*.lock' 2>/dev/null
 ```
 
-If staged diff is empty, get unstaged:
+If staged diff is empty, get unstaged (separate Bash call):
 ```bash
 git diff --diff-filter=d -- . ':!node_modules' ':!vendor' ':!*.min.js' ':!*.min.css' ':!package-lock.json' ':!yarn.lock' ':!pnpm-lock.yaml' ':!composer.lock' ':!*.lock' 2>/dev/null
 ```
 
-**Check diff size:** Count lines of the diff output.
+Capture the diff output from the Bash result. Do NOT redirect to a file via shell — use the **Write tool** to save the diff content.
+
+**Check diff size:** Count lines of the diff output in memory (not via shell).
 - If > 5000 lines: Tell the user **"Diff too large (N lines). Use `/loopwise code --file <path>` to review specific files, or split your changes into smaller commits."** and **stop**. Do not do a partial review.
 - If 0 lines after filtering: Tell the user "Only vendor/generated files changed. Nothing to review." and **stop**.
 

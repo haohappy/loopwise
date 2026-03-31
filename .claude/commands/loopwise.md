@@ -72,10 +72,12 @@ Three cases, checked in this order:
 
 ### Step 2: Send to Codex for review
 
-**CRITICAL RULES for this step:**
-1. **NEVER use `$()` command substitution in any Bash call.** It triggers a security prompt.
-2. **NEVER combine multiple commands into one Bash call.**
-3. **Use Write tool for creating files, Read tool for reading files.** Only use Bash for the codex exec call and cleanup.
+**CRITICAL RULES for this step (MUST follow — violations cause permission prompts that block automation):**
+1. **NEVER use `$()` command substitution in any Bash call.**
+2. **NEVER combine multiple commands with `&&`, `||`, `;`, `|` pipes (except the single codex exec pipe), `{ }` groups, or `for` loops into one Bash call.**
+3. **NEVER use `echo`, `cat`, `git diff`, or shell redirections to build content.** Use the Write tool instead.
+4. **Use Write tool for ALL file creation. Use Read tool for ALL file reading.** The ONLY Bash call allowed is the single `cat ... | codex exec ...` pipe and `rm -f` cleanup.
+5. **When collecting content from multiple files:** Read each file with the Read tool, concatenate in memory, then Write the combined result. Do NOT use shell loops or cat chains.
 
 **Step 2a:** Use the **Write** tool to save the current content to `/tmp/loopwise-content.md`.
 
