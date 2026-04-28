@@ -12,7 +12,7 @@ $ARGUMENTS should be in format: `<mode> [--file <path>] [--since <ref>] [flags] 
 - **--adversarial**: Optional. Enable adversarial review mode (skeptical stance, deeper scrutiny).
 - **--background**: Optional. Run the first Codex review in the background. You'll be notified when it completes. Use `/loopwise-status` to check progress.
 - **--max-rounds \<n\>**: Optional. Limit review rounds. Default: no limit.
-- **--model \<model\>**: Optional. Codex model. Default: `gpt-5.4`.
+- **--model \<model\>**: Optional. Override Codex model. Default: uses Codex CLI's configured default (from `~/.codex/config.toml`).
 - **--force**: Optional. Bypass review history check.
 - **prompt**: What to generate or review. If none of `--file`, `--since`, or prompt are provided, review the work you just produced in this conversation.
 
@@ -45,7 +45,7 @@ Extract from $ARGUMENTS:
 4. `adversarial` — if `--adversarial` present, set true and remove. Default: false
 5. `background` — if `--background` present, set true and remove. Default: false
 6. `max_rounds` — if `--max-rounds <n>` present, extract and remove. Default: no limit
-7. `codex_model` — if `--model <model>` present, extract and remove. Default: `gpt-5.4`
+7. `codex_model` — if `--model <model>` present, extract and remove. Default: empty (omit `--model` flag to use Codex CLI's configured default)
 8. `force` — if `--force` present, set true and remove. Default: false
 9. `prompt` — everything remaining after extracting all flags
 
@@ -256,14 +256,16 @@ Append the full content to review at the end of the prompt file (after `=== PLAN
 
 **If `background` is false (default — foreground):**
 ```bash
-cat /tmp/loopwise-prompt.md | codex exec - --model <codex_model> --sandbox read-only --skip-git-repo-check --ephemeral -o /tmp/loopwise-output.md ```
+cat /tmp/loopwise-prompt.md | codex exec - [--model <codex_model>] --sandbox read-only --skip-git-repo-check --ephemeral -o /tmp/loopwise-output.md ```
+
+**Note:** Only include `--model <codex_model>` if the user explicitly passed `--model`. If `codex_model` is empty, omit the flag entirely so Codex uses its configured default from `~/.codex/config.toml`.
 
 **If `background` is true:**
 Only the FIRST Codex call runs in background. Tell the user: **"Review started in background. You'll be notified when it completes. Use `/loopwise-status` to check progress."**
 
 Run the Codex call using Bash with `run_in_background: true`:
 ```bash
-cat /tmp/loopwise-prompt.md | codex exec - --model <codex_model> --sandbox read-only --skip-git-repo-check --ephemeral -o /tmp/loopwise-output.md ```
+cat /tmp/loopwise-prompt.md | codex exec - [--model <codex_model>] --sandbox read-only --skip-git-repo-check --ephemeral -o /tmp/loopwise-output.md ```
 
 Before launching the background call, create a job record:
 ```bash
@@ -364,7 +366,7 @@ Report format:
 - **Status**: APPROVED / MAX_ROUNDS_REACHED / DEGRADED
 - **Total rounds**: N
 - **Date**: YYYY-MM-DD HH:MM
-- **Models**: Claude Code (claude-opus-4-6) ↔ Codex (gpt-5.4)
+- **Models**: Claude Code (claude-opus-4-6) ↔ Codex (<model used, or "default" if --model was not specified>)
 - **Input**: (prompt text, or file path if --file was used)
 
 ## Statistics

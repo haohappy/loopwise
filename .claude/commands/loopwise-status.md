@@ -27,7 +27,7 @@ Background Review Status
 Status:   RUNNING (or STALE if >15min)
 Mode:     plan / code
 File:     docs/plan.md
-Model:    gpt-5.4
+Model:    <model from job record>
 Started:  2026-03-31 16:30
 Elapsed:  2m 15s
 ```
@@ -41,7 +41,7 @@ Background Review Status
 Status:   COMPLETED
 Mode:     plan / code
 File:     docs/plan.md
-Model:    gpt-5.4
+Model:    <model from job record>
 Duration: 1m 45s
 ```
 

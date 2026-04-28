@@ -22,7 +22,7 @@ set -euo pipefail
 
 MAX_ROUNDS="${LOOPWISE_MAX_ROUNDS:-0}"  # 0 = unlimited
 CLAUDE_MODEL="${LOOPWISE_CLAUDE_MODEL:-}"
-CODEX_MODEL="${LOOPWISE_CODEX_MODEL:-gpt-5.4}"
+CODEX_MODEL="${LOOPWISE_CODEX_MODEL:-}"
 OUTPUT_DIR="${LOOPWISE_OUTPUT_DIR:-.loopwise}"
 VERBOSE="${LOOPWISE_VERBOSE:-false}"
 TIMEOUT="${LOOPWISE_TIMEOUT:-300}"
@@ -189,12 +189,11 @@ $content"
   local output_file
   output_file=$(mktemp)
 
-  printf '%s' "$review_prompt" | run_with_timeout codex exec - \
-    --model "$CODEX_MODEL" \
-    --sandbox read-only \
-    --skip-git-repo-check \
-    --ephemeral \
-    -o "$output_file" 2>/dev/null || {
+  local codex_args=(exec -)
+  [[ -n "$CODEX_MODEL" ]] && codex_args+=(--model "$CODEX_MODEL")
+  codex_args+=(--sandbox read-only --skip-git-repo-check --ephemeral -o "$output_file")
+
+  printf '%s' "$review_prompt" | run_with_timeout codex "${codex_args[@]}" 2>/dev/null || {
     rm -f "$output_file"
     err "Codex review failed."
     return 1
@@ -431,7 +430,7 @@ Usage:
 Options:
   --max-rounds <n>     Maximum review cycles (default: 5)
   --claude-model <m>   Claude model override
-  --codex-model <m>    Codex model (default: o3)
+  --codex-model <m>    Codex model (default: Codex CLI config)
   --output-dir <dir>   Output directory (default: .loopwise)
   --timeout <secs>     Timeout per CLI call in seconds (default: 300)
   --verbose            Show debug output

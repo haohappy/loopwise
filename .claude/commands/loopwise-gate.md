@@ -18,7 +18,7 @@ Examples:
 ### Step 0: Parse arguments
 
 Extract from $ARGUMENTS:
-1. `codex_model` — if `--model <model>` present, extract and remove. Default: `gpt-5.4`
+1. `codex_model` — if `--model <model>` present, extract and remove. Default: empty (omit `--model` flag to use Codex CLI's configured default)
 2. `focus` — everything remaining (optional focus text for the review)
 
 ### Step 1: Verify environment
@@ -102,7 +102,7 @@ Append the diff after `=== DIFF TO REVIEW ===`.
 
 **Call Codex** (single Bash):
 ```bash
-cat /tmp/loopwise-gate-prompt.md | codex exec - --model <codex_model> --sandbox read-only --skip-git-repo-check --ephemeral -o /tmp/loopwise-gate-output.md
+cat /tmp/loopwise-gate-prompt.md | codex exec - [--model <codex_model>] --sandbox read-only --skip-git-repo-check --ephemeral -o /tmp/loopwise-gate-output.md
 ```
 
 **Read output** with Read tool, then **clean up**:
