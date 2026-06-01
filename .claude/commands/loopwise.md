@@ -45,15 +45,20 @@ You are now entering an automated review loop with Codex. Follow these steps pre
 Resolve the effective Codex model using the same precedence a real review uses:
 
 1. If the user passed `--model <model>` after `model`, that is the effective model. Source: "explicit override (--model)".
-2. Otherwise read the Codex CLI config. Use the **Read** tool on `~/.codex/config.toml` (expand `~` to the user's home; respect `$CODEX_HOME` if set, i.e. `$CODEX_HOME/config.toml`). Find the first uncommented `model = "..."` line. That value is the effective model. Source: the config file path.
-3. If the file does not exist or has no `model` line, the effective model is the **Codex CLI built-in default**. Source: "Codex CLI built-in default (no model set in config)".
+2. Otherwise read the Codex CLI config. Use the **Read** tool on `~/.codex/config.toml` (expand `~` to the user's home; respect `$CODEX_HOME` if set, i.e. `$CODEX_HOME/config.toml`). Find the first uncommented `model = "..."` line. If present, that value is the effective model. Source: the config file path.
+3. If the file does not exist or has no `model` line, **probe Codex CLI live** for its real default. Tell the user "Querying Codex CLI...", then run a tiny throwaway turn and read the model from the banner it prints. Use a single Bash call (this matches the allowed `codex exec` pipe pattern):
+   ```bash
+   printf 'ok' | codex exec - --sandbox read-only --skip-git-repo-check --ephemeral 2>&1 | grep -i '^model:'
+   ```
+   The output looks like `model: gpt-5.5` — extract the value after `model:`. Source: "Codex CLI live default (probed via codex exec; no model in config)".
+4. If the probe fails (codex not installed / errors), fall back to reporting the **Codex CLI built-in default** with no concrete name. Source: "Codex CLI built-in default (live probe unavailable)".
 
 Then report to the user, e.g.:
 
 ```
 loopwise — models in use
   Codex (reviewer):   gpt-5.5
-  source: ~/.codex/config.toml
+  source: Codex CLI live default (probed via codex exec; no model in ~/.codex/config.toml)
   Claude (generator): <this Claude Code session's model>
 ```
 
