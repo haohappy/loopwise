@@ -230,6 +230,19 @@ read_codex_config_model() {
     | sed -E 's/[[:space:]]+$//'
 }
 
+# Ask Codex CLI which model it actually uses, by reading the banner it prints
+# on `codex exec` startup. This is the only reliable way to learn the resolved
+# default when no model is pinned in config. Costs a tiny throwaway turn.
+probe_codex_model() {
+  command -v codex >/dev/null 2>&1 || return 1
+  printf 'ok' | run_with_timeout codex exec - \
+      --sandbox read-only --skip-git-repo-check --ephemeral 2>&1 \
+    | grep -iE '^model:' \
+    | head -1 \
+    | sed -E 's/^[Mm]odel:[[:space:]]*//' \
+    | tr -d '[:space:]'
+}
+
 resolve_codex_model() {
   if [[ -n "$CODEX_MODEL" ]]; then
     RESOLVED_CODEX_MODEL="$CODEX_MODEL"
@@ -243,11 +256,23 @@ resolve_codex_model() {
     RESOLVED_CODEX_SOURCE="$(codex_config_path)"
     return
   fi
+  # No explicit model and none in config — ask Codex CLI live for its default.
+  local probed
+  probed="$(probe_codex_model 2>/dev/null || true)"
+  if [[ -n "$probed" ]]; then
+    RESOLVED_CODEX_MODEL="$probed"
+    RESOLVED_CODEX_SOURCE="Codex CLI live default (probed via 'codex exec'; no model in $(codex_config_path))"
+    return
+  fi
   RESOLVED_CODEX_MODEL=""
-  RESOLVED_CODEX_SOURCE="Codex CLI built-in default (no model set in $(codex_config_path))"
+  RESOLVED_CODEX_SOURCE="Codex CLI built-in default (live probe unavailable; no model in $(codex_config_path))"
 }
 
 show_models() {
+  # If we'll need to probe (no override, nothing in config), warn it may take a moment.
+  if [[ -z "$CODEX_MODEL" && -z "$(read_codex_config_model || true)" ]]; then
+    log "Resolving model (querying Codex CLI)..." >&2
+  fi
   resolve_codex_model
   echo ""
   echo -e "${BOLD}loopwise — models in use${NC}"
