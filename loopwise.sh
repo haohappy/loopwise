@@ -205,6 +205,59 @@ $content"
   printf '%s' "$result"
 }
 
+# ─── Model resolution ─────────────────────────────────────────────────────────
+#
+# Resolves the effective Codex model the same way a real run would:
+#   1. --codex-model flag / LOOPWISE_CODEX_MODEL env  (explicit override)
+#   2. ~/.codex/config.toml  (Codex CLI configured default)
+#   3. Codex CLI built-in default  (no model line found)
+#
+# Sets globals: RESOLVED_CODEX_MODEL and RESOLVED_CODEX_SOURCE.
+
+codex_config_path() {
+  printf '%s/config.toml' "${CODEX_HOME:-$HOME/.codex}"
+}
+
+read_codex_config_model() {
+  local cfg
+  cfg="$(codex_config_path)"
+  [[ -f "$cfg" ]] || return 1
+  # First uncommented `model = "..."` line. Strip quotes, inline comments, spaces.
+  grep -E '^[[:space:]]*model[[:space:]]*=' "$cfg" 2>/dev/null \
+    | grep -vE '^[[:space:]]*#' \
+    | head -1 \
+    | sed -E 's/^[[:space:]]*model[[:space:]]*=[[:space:]]*"?([^"#]+)"?.*/\1/' \
+    | sed -E 's/[[:space:]]+$//'
+}
+
+resolve_codex_model() {
+  if [[ -n "$CODEX_MODEL" ]]; then
+    RESOLVED_CODEX_MODEL="$CODEX_MODEL"
+    RESOLVED_CODEX_SOURCE="explicit override (--codex-model / LOOPWISE_CODEX_MODEL)"
+    return
+  fi
+  local cfg_model
+  cfg_model="$(read_codex_config_model || true)"
+  if [[ -n "$cfg_model" ]]; then
+    RESOLVED_CODEX_MODEL="$cfg_model"
+    RESOLVED_CODEX_SOURCE="$(codex_config_path)"
+    return
+  fi
+  RESOLVED_CODEX_MODEL=""
+  RESOLVED_CODEX_SOURCE="Codex CLI built-in default (no model set in $(codex_config_path))"
+}
+
+show_models() {
+  resolve_codex_model
+  echo ""
+  echo -e "${BOLD}loopwise — models in use${NC}"
+  echo -e "  ${BOLD}Codex (reviewer):${NC}  ${CYAN}${RESOLVED_CODEX_MODEL:-<Codex CLI default>}${NC}"
+  echo -e "  ${DIM}source: ${RESOLVED_CODEX_SOURCE}${NC}"
+  local claude_model_display="${CLAUDE_MODEL:-<Claude Code default>}"
+  echo -e "  ${BOLD}Claude (generator):${NC} ${CYAN}${claude_model_display}${NC}"
+  echo ""
+}
+
 # ─── Approval detection ─────────────────────────────────────────────────────
 
 is_approved() {
@@ -426,6 +479,7 @@ Usage:
   loopwise code <prompt>                    Generate and review code
   loopwise plan --file <path> [prompt]      Review an existing plan file
   loopwise code --file <path> [prompt]      Review an existing code file
+  loopwise model                            Show the effective GPT/Codex model and exit
 
 Options:
   --max-rounds <n>     Maximum review cycles (default: 5)
@@ -454,12 +508,16 @@ main() {
     exit 1
   fi
 
-  local mode="" prompt="" target_file=""
+  local mode="" prompt="" target_file="" show_model="false"
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
       plan|code)
         mode="$1"
+        shift
+        ;;
+      model|models|--show-model)
+        show_model="true"
         shift
         ;;
       --file)
@@ -504,6 +562,12 @@ main() {
         ;;
     esac
   done
+
+  # `loopwise model` (or --show-model): report the effective model and exit.
+  if [[ "$show_model" == "true" ]]; then
+    show_models
+    exit 0
+  fi
 
   if [[ -z "$mode" ]]; then
     err "Specify mode: plan or code"
