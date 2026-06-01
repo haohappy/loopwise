@@ -6,7 +6,8 @@ Automated review loop: you (Claude Code) produce a plan or code, then Codex revi
 
 $ARGUMENTS should be in format: `<mode> [--file <path>] [--since <ref>] [flags] [prompt or instructions]`
 
-- **mode**: `plan` or `code`
+- **mode**: `plan`, `code`, or `model`
+  - `model` (alias `models`) is a query-only subcommand: it reports the effective Codex/GPT model and exits without running any review. See "Step M" below.
 - **--file \<path\>**: Optional. Path to an existing file to use as initial content for review (skip generation).
 - **--since \<ref\>**: Optional. Review code changes since a git reference. Supports commit hash (`abc1234`), relative ref (`HEAD~5`), branch name (`main`), or date (`2026-03-30`). Collects `git diff <ref>..HEAD`. Code mode only.
 - **--adversarial**: Optional. Enable adversarial review mode (skeptical stance, deeper scrutiny).
@@ -30,11 +31,33 @@ Examples:
 /loopwise plan --file docs/plan.md --background
 /loopwise plan
 /loopwise code
+/loopwise model
 ```
 
 ## Instructions
 
 You are now entering an automated review loop with Codex. Follow these steps precisely:
+
+### Step M: `model` subcommand (query effective GPT/Codex model)
+
+**If the first word of $ARGUMENTS is `model` or `models`, do ONLY this step, then stop. Do not run any review.**
+
+Resolve the effective Codex model using the same precedence a real review uses:
+
+1. If the user passed `--model <model>` after `model`, that is the effective model. Source: "explicit override (--model)".
+2. Otherwise read the Codex CLI config. Use the **Read** tool on `~/.codex/config.toml` (expand `~` to the user's home; respect `$CODEX_HOME` if set, i.e. `$CODEX_HOME/config.toml`). Find the first uncommented `model = "..."` line. That value is the effective model. Source: the config file path.
+3. If the file does not exist or has no `model` line, the effective model is the **Codex CLI built-in default**. Source: "Codex CLI built-in default (no model set in config)".
+
+Then report to the user, e.g.:
+
+```
+loopwise — models in use
+  Codex (reviewer):   gpt-5.5
+  source: ~/.codex/config.toml
+  Claude (generator): <this Claude Code session's model>
+```
+
+Stop here.
 
 ### Step 0: Parse arguments
 

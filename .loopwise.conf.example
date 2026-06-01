@@ -8,7 +8,7 @@ LOOPWISE_MAX_ROUNDS=0  # 0 = unlimited, loop until approved
 LOOPWISE_CLAUDE_MODEL=""
 
 # Codex model for reviews
-LOOPWISE_CODEX_MODEL="gpt-5.4"
+LOOPWISE_CODEX_MODEL=""  # empty = use Codex CLI config (~/.codex/config.toml)
 
 # Where to store session artifacts
 LOOPWISE_OUTPUT_DIR=".loopwise"
