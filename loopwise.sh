@@ -146,9 +146,21 @@ run_codex_review() {
   local content="$1"
   local review_type="$2"
 
+  # Per-call integrity nonce. Codex must echo it back; if the echoed token is
+  # missing or different, the response is stale / from another session and is
+  # rejected (see https://github.com/haohappy/loopwise bug 2026-06-05: codex can
+  # replay a cached session and review the WRONG project's content).
+  local nonce="LWID-$(date +%s)-$$-${RANDOM}${RANDOM}"
+  local integrity_header="INTEGRITY CHECK — START YOUR RESPONSE WITH THIS EXACT LINE, NOTHING BEFORE IT:
+REVIEW_ID: $nonce
+
+Echo the token verbatim. This proves you are reviewing the content provided below in THIS request (not a cached or prior session). Then continue with your review.
+
+"
+
   local review_prompt
   if [[ "$review_type" == "plan" ]]; then
-    review_prompt="You are a senior technical reviewer. Review the following development plan.
+    review_prompt="${integrity_header}You are a senior technical reviewer. Review the following development plan.
 
 Evaluate:
 1. Completeness: Are all requirements addressed?
@@ -165,7 +177,7 @@ If improvements are needed, provide specific, actionable feedback. Do NOT say AP
 === PLAN TO REVIEW ===
 $content"
   else
-    review_prompt="You are a senior code reviewer. Review the following code or implementation.
+    review_prompt="${integrity_header}You are a senior code reviewer. Review the following code or implementation.
 
 Evaluate:
 1. Correctness: Does the logic work as intended?
@@ -202,7 +214,20 @@ $content"
   local result
   result=$(cat "$output_file")
   rm -f "$output_file"
-  printf '%s' "$result"
+
+  # Integrity gate: the response MUST contain our exact nonce. If not, Codex
+  # reviewed stale/cross-session content (or stdin was dropped) — reject it
+  # rather than acting on a review of the wrong content.
+  if ! printf '%s' "$result" | grep -qF "REVIEW_ID: $nonce"; then
+    err "Integrity check FAILED: Codex response did not echo this run's REVIEW_ID."
+    err "The review likely ran against stale/cached or cross-project content and was discarded."
+    err "Nothing was changed. Re-run; if it persists, restart Codex CLI (stale session cache)."
+    return 1
+  fi
+  debug "Integrity OK: REVIEW_ID $nonce echoed."
+
+  # Strip the integrity line(s) so downstream approval/feedback parsing is clean.
+  printf '%s' "$result" | grep -vF "REVIEW_ID: $nonce"
 }
 
 # ─── Model resolution ─────────────────────────────────────────────────────────

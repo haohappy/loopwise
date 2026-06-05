@@ -172,6 +172,15 @@ cat <<'LOOPWISE_EOF' > /tmp/loopwise-prompt.md
 LOOPWISE_EOF
 ```
 
+**Integrity nonce (REQUIRED — prevents reviewing the wrong content).** Codex can occasionally replay a cached/cross-project session instead of the piped prompt (observed 2026-06-05: a review came back about a different project entirely). To detect this, generate a unique nonce for this round, e.g. `REVIEW_ID: lw-<timestamp>-<4 random chars>`. Put it as the very FIRST line of the prompt file with an instruction that Codex must copy it into the JSON `review_id` field verbatim. Keep the nonce value in memory for Step 3 verification.
+
+The prompt MUST begin with:
+```
+INTEGRITY: Set the JSON field "review_id" to exactly: <nonce>
+This proves you reviewed the content in THIS request, not a cached session.
+
+```
+
 The prompt MUST include the JSON output contract. Use the appropriate template:
 
 ---
@@ -186,6 +195,7 @@ For plan mode:
 Respond with ONLY a JSON object (no other text). Schema:
 {
   "schema_version": 1,
+  "review_id": "<copy the REVIEW_ID nonce verbatim>",
   "verdict": "approve" | "needs_attention",
   "summary": "one-line ship/no-ship assessment",
   "findings": [
@@ -201,7 +211,7 @@ Respond with ONLY a JSON object (no other text). Schema:
   ],
   "next_steps": ["actionable item"]
 }
-Required: schema_version, verdict, summary, findings.
+Required: schema_version, review_id, verdict, summary, findings.
 Required per finding: severity, title, body, confidence, recommendation.
 findings may be empty [] if verdict is approve.
 </output_contract>
@@ -245,6 +255,7 @@ Check in priority order:
 Respond with ONLY a JSON object (no other text). Schema:
 {
   "schema_version": 1,
+  "review_id": "<copy the REVIEW_ID nonce verbatim>",
   "verdict": "approve" | "needs_attention",
   "summary": "one-line adversarial assessment",
   "findings": [
@@ -260,7 +271,7 @@ Respond with ONLY a JSON object (no other text). Schema:
   ],
   "next_steps": ["actionable item"]
 }
-Required: schema_version, verdict, summary, findings.
+Required: schema_version, review_id, verdict, summary, findings.
 Required per finding: severity, title, body, confidence, recommendation.
 Report only material findings. No style or naming feedback.
 Use "approve" only when no substantive risk remains.
@@ -326,6 +337,10 @@ rm -f /tmp/loopwise-content.md /tmp/loopwise-prompt.md /tmp/loopwise-output.md
 ```
 
 ### Step 3: Parse and check verdict
+
+**Step 3.0: Integrity check (do this FIRST, before trusting anything).** After parsing the JSON (below), compare its `review_id` to the nonce you generated for this round.
+- **Match** → proceed normally.
+- **Missing or different** → the review is stale / from a cached or cross-project Codex session and did NOT review your content. **Abort the loop immediately.** Do NOT revise, do NOT apply any findings. Tell the user: "Integrity check failed — Codex did not review the submitted content (review_id mismatch). Nothing was changed." Suggest re-running; if it persists, restart the Codex CLI to clear stale session state. Treat this as a terminal failure for the report (Status: DEGRADED, reason: integrity mismatch).
 
 Parse the Codex output as JSON. Apply this fallback chain:
 

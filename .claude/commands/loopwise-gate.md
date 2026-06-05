@@ -65,13 +65,19 @@ Capture the diff output from the Bash result. Do NOT redirect to a file via shel
 
 **Use Write tool** to save the review prompt to `/tmp/loopwise-gate-prompt.md`:
 
+Generate a unique integrity nonce (e.g. `gate-<timestamp>-<4 random chars>`) and make it the FIRST line of the prompt; require Codex to copy it into `review_id`. Keep it in memory for Step 4.
+
 ```
+INTEGRITY: Set the JSON field "review_id" to exactly: <nonce>
+This proves you reviewed the diff in THIS request, not a cached session.
+
 <task>Quick review of git diff for safety before committing.</task>
 
 <output_contract>
 Respond with ONLY a JSON object. Schema:
 {
   "schema_version": 1,
+  "review_id": "<copy the integrity nonce verbatim>",
   "verdict": "approve" | "needs_attention",
   "summary": "one-line assessment",
   "findings": [
@@ -116,6 +122,8 @@ Parse the Codex output as JSON. Apply the same fallback chain as `/loopwise`:
 1. Direct JSON parse
 2. Extract fenced/braced JSON block
 3. If parse fails entirely → treat as degraded
+
+**Integrity check first:** if the parsed `review_id` does not equal the nonce you generated, the review is stale/cross-session and did not look at your diff. Output `WARNING (integrity): Codex did not review the submitted diff (review_id mismatch). Treat changes as unreviewed.` and stop — never output OK.
 
 **Output decision:**
 
