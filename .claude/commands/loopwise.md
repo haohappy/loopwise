@@ -14,6 +14,7 @@ $ARGUMENTS should be in format: `<mode> [--file <path>] [--since <ref>] [flags] 
 - **--background**: Optional. Run the first Codex review in the background. You'll be notified when it completes. Use `/loopwise-status` to check progress.
 - **--max-rounds \<n\>**: Optional. Limit review rounds. Default: no limit.
 - **--model \<model\>**: Optional. Override Codex model. Default: uses Codex CLI's configured default (from `~/.codex/config.toml`).
+- **--hao-bot**: Optional. Route the Codex review through `api.hao.bot` (OpenAI Responses API) for this run only, instead of the official OpenAI backend. Requires `HAOBOT_API_KEY` in the environment. See Step 2c.
 - **--force**: Optional. Bypass review history check.
 - **prompt**: What to generate or review. If none of `--file`, `--since`, or prompt are provided, review the work you just produced in this conversation.
 
@@ -29,6 +30,7 @@ Examples:
 /loopwise code --since 2026-03-30
 /loopwise code --since abc1234 --adversarial
 /loopwise plan --file docs/plan.md --background
+/loopwise code --file src/auth.ts --hao-bot
 /loopwise plan
 /loopwise code
 /loopwise model
@@ -75,7 +77,10 @@ Extract from $ARGUMENTS:
 6. `max_rounds` — if `--max-rounds <n>` present, extract and remove. Default: no limit
 7. `codex_model` — if `--model <model>` present, extract and remove. Default: empty (omit `--model` flag to use Codex CLI's configured default)
 8. `force` — if `--force` present, set true and remove. Default: false
-9. `prompt` — everything remaining after extracting all flags
+9. `hao_bot` — if `--hao-bot` present, set true and remove. Default: false
+10. `prompt` — everything remaining after extracting all flags
+
+**If `hao_bot` is true:** confirm `HAOBOT_API_KEY` is set in the environment (check with a single `printenv HAOBOT_API_KEY` Bash call; do NOT echo the value). If it is empty/unset, tell the user "--hao-bot needs HAOBOT_API_KEY in the environment" and stop.
 
 **Validation:** `--file` and `--since` are mutually exclusive. If both are provided, tell the user and stop. `--since` is only valid in `code` mode; if used with `plan` mode, tell the user and stop.
 
@@ -298,6 +303,11 @@ Append the full content to review at the end of the prompt file (after `=== PLAN
 cat /tmp/loopwise-prompt.md | codex exec - [--model <codex_model>] --sandbox read-only --skip-git-repo-check --ephemeral -o /tmp/loopwise-output.md ```
 
 **Note:** Only include `--model <codex_model>` if the user explicitly passed `--model`. If `codex_model` is empty, omit the flag entirely so Codex uses its configured default from `~/.codex/config.toml`.
+
+**If `hao_bot` is true**, add these `-c` provider overrides to the same `codex exec` call (route this run through api.hao.bot; global config untouched, key read from `$HAOBOT_API_KEY`):
+```bash
+cat /tmp/loopwise-prompt.md | codex exec - [--model <codex_model>] -c model_provider=haobot -c 'model_providers.haobot.name="haobot"' -c 'model_providers.haobot.base_url="https://api.hao.bot/v1"' -c 'model_providers.haobot.wire_api="responses"' -c 'model_providers.haobot.env_key="HAOBOT_API_KEY"' --sandbox read-only --skip-git-repo-check --ephemeral -o /tmp/loopwise-output.md ```
+Tell the user at the start of the run: "Routing Codex review via api.hao.bot." This is still a single Bash call (the allowed codex pipe pattern), just with extra `-c` flags. If `background` is true, add the same `-c` overrides to the background `codex exec` call too.
 
 **If `background` is true:**
 Only the FIRST Codex call runs in background. Tell the user: **"Review started in background. You'll be notified when it completes. Use `/loopwise-status` to check progress."**

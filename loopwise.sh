@@ -26,6 +26,11 @@ CODEX_MODEL="${LOOPWISE_CODEX_MODEL:-}"
 OUTPUT_DIR="${LOOPWISE_OUTPUT_DIR:-.loopwise}"
 VERBOSE="${LOOPWISE_VERBOSE:-false}"
 TIMEOUT="${LOOPWISE_TIMEOUT:-300}"
+USE_HAOBOT="${LOOPWISE_HAOBOT:-false}"  # route Codex reviews via api.hao.bot
+
+# api.hao.bot provider settings (used only when --hao-bot / USE_HAOBOT=true).
+# Codex talks the OpenAI Responses API; the key is read from $HAOBOT_API_KEY.
+HAOBOT_BASE_URL="${LOOPWISE_HAOBOT_BASE_URL:-https://api.hao.bot/v1}"
 
 # Colors
 RED='\033[0;31m'
@@ -142,6 +147,21 @@ extract_session_id() {
 #
 # Prompt piped via stdin (using "-" arg). Output captured via -o tempfile.
 
+# When --hao-bot is set, build the `codex exec -c` overrides that point Codex at
+# api.hao.bot (OpenAI Responses API) for this run only — global config untouched.
+# Populates the global array HAOBOT_CODEX_ARGS (empty when the flag is off).
+build_haobot_args() {
+  HAOBOT_CODEX_ARGS=()
+  [[ "$USE_HAOBOT" == "true" ]] || return 0
+  HAOBOT_CODEX_ARGS=(
+    -c model_provider=haobot
+    -c 'model_providers.haobot.name="haobot"'
+    -c "model_providers.haobot.base_url=\"$HAOBOT_BASE_URL\""
+    -c 'model_providers.haobot.wire_api="responses"'
+    -c 'model_providers.haobot.env_key="HAOBOT_API_KEY"'
+  )
+}
+
 run_codex_review() {
   local content="$1"
   local review_type="$2"
@@ -203,6 +223,8 @@ $content"
 
   local codex_args=(exec -)
   [[ -n "$CODEX_MODEL" ]] && codex_args+=(--model "$CODEX_MODEL")
+  build_haobot_args
+  [[ ${#HAOBOT_CODEX_ARGS[@]} -gt 0 ]] && codex_args+=("${HAOBOT_CODEX_ARGS[@]}")
   codex_args+=(--sandbox read-only --skip-git-repo-check --ephemeral -o "$output_file")
 
   printf '%s' "$review_prompt" | run_with_timeout codex "${codex_args[@]}" 2>/dev/null || {
@@ -260,8 +282,11 @@ read_codex_config_model() {
 # default when no model is pinned in config. Costs a tiny throwaway turn.
 probe_codex_model() {
   command -v codex >/dev/null 2>&1 || return 1
-  printf 'ok' | run_with_timeout codex exec - \
-      --sandbox read-only --skip-git-repo-check --ephemeral 2>&1 \
+  local args=(exec -)
+  build_haobot_args
+  [[ ${#HAOBOT_CODEX_ARGS[@]} -gt 0 ]] && args+=("${HAOBOT_CODEX_ARGS[@]}")
+  args+=(--sandbox read-only --skip-git-repo-check --ephemeral)
+  printf 'ok' | run_with_timeout codex "${args[@]}" 2>&1 \
     | grep -iE '^model:' \
     | head -1 \
     | sed -E 's/^[Mm]odel:[[:space:]]*//' \
@@ -335,6 +360,7 @@ run_review_loop() {
   echo -e "  Mode:       ${CYAN}$mode${NC}"
   echo -e "  Max rounds: ${CYAN}$MAX_ROUNDS${NC}"
   [[ -n "$target_file" ]] && echo -e "  File:       ${CYAN}$target_file${NC}"
+  [[ "$USE_HAOBOT" == "true" ]] && echo -e "  Reviewer:   ${CYAN}api.hao.bot${NC} ${DIM}($HAOBOT_BASE_URL)${NC}"
   echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
   echo ""
 
@@ -537,18 +563,21 @@ Options:
   --codex-model <m>    Codex model (default: Codex CLI config)
   --output-dir <dir>   Output directory (default: .loopwise)
   --timeout <secs>     Timeout per CLI call in seconds (default: 300)
+  --hao-bot            Route Codex reviews via api.hao.bot (needs HAOBOT_API_KEY)
   --verbose            Show debug output
   --help               Show this help
 
 Environment variables:
   LOOPWISE_MAX_ROUNDS    LOOPWISE_CLAUDE_MODEL    LOOPWISE_CODEX_MODEL
   LOOPWISE_OUTPUT_DIR    LOOPWISE_VERBOSE          LOOPWISE_TIMEOUT
+  LOOPWISE_HAOBOT        LOOPWISE_HAOBOT_BASE_URL  HAOBOT_API_KEY (--hao-bot)
 
 Examples:
   loopwise plan "Build a REST API for user management with JWT auth"
   loopwise code "Implement a rate limiter middleware for Express"
   loopwise code --file src/auth.ts "Refactor to use passport.js"
   LOOPWISE_MAX_ROUNDS=10 loopwise plan "Design a microservices architecture"
+  HAOBOT_API_KEY=sk-... loopwise plan --hao-bot --file docs/plan.md
 EOF
 }
 
@@ -594,6 +623,10 @@ main() {
         TIMEOUT="$2"
         shift 2
         ;;
+      --hao-bot)
+        USE_HAOBOT="true"
+        shift
+        ;;
       --verbose)
         VERBOSE="true"
         shift
@@ -612,6 +645,13 @@ main() {
         ;;
     esac
   done
+
+  # --hao-bot requires the API key in the environment (never hardcoded).
+  if [[ "$USE_HAOBOT" == "true" && -z "${HAOBOT_API_KEY:-}" ]]; then
+    err "--hao-bot requires HAOBOT_API_KEY in the environment."
+    err "  export HAOBOT_API_KEY=sk-... then re-run."
+    exit 1
+  fi
 
   # `loopwise model` (or --show-model): report the effective model and exit.
   if [[ "$show_model" == "true" ]]; then
