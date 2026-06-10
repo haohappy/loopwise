@@ -56,6 +56,23 @@ The Codex CLI built-in default model rotates over time (it changed from `gpt-5.5
 
 Lesson: pin an explicit, verified model. Bump it manually (with the availability check above) when a new version ships. Never depend on the CLI default.
 
+## Routing reviews via api.hao.bot (`--hao-bot`)
+
+`--hao-bot` (env: `LOOPWISE_HAOBOT=true`) routes the Codex **review** through `api.hao.bot` instead of the official OpenAI backend, for that run only — global `~/.codex/config.toml` is untouched. The key is read from `$HAOBOT_API_KEY` (never hardcoded).
+
+Mechanism: it adds `codex exec -c` provider overrides (`model_provider=haobot`, `base_url=https://api.hao.bot/v1`, `wire_api="responses"`, `env_key="HAOBOT_API_KEY"`).
+
+**Requires the OpenAI Responses API.** This Codex CLI version only supports `wire_api = "responses"` (the older `"chat"` was removed). So api.hao.bot must expose `POST /v1/responses` — if it only has `/v1/chat/completions` or `/v1/messages`, Codex 404s. (api.hao.bot added `/v1/responses` on 2026-06-11; verified working with `gpt-5.5`.)
+
+Usage:
+```bash
+export HAOBOT_API_KEY=sk-...
+loopwise code --file src/auth.ts --hao-bot
+# or inside Claude Code: /loopwise code --file src/auth.ts --hao-bot
+```
+
+Override the endpoint with `LOOPWISE_HAOBOT_BASE_URL` if needed.
+
 ## Known constraints
 
 **Security hook compatibility**: The skill writes temp files to `/tmp/loopwise-*.md` using Bash heredoc instead of the Write tool. This avoids triggering security hooks that scan Write tool content for patterns like `exec`. Do not switch back to the Write tool for temp files.

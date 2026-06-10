@@ -11,6 +11,7 @@ Examples:
 /loopwise-gate
 /loopwise-gate focus on auth and input validation
 /loopwise-gate --model o3
+/loopwise-gate --hao-bot
 ```
 
 ## Instructions
@@ -19,7 +20,8 @@ Examples:
 
 Extract from $ARGUMENTS:
 1. `codex_model` — if `--model <model>` present, extract and remove. Default: empty (omit `--model` flag to use Codex CLI's configured default)
-2. `focus` — everything remaining (optional focus text for the review)
+2. `hao_bot` — if `--hao-bot` present, set true and remove. Default: false. If true, confirm `HAOBOT_API_KEY` is set (`printenv HAOBOT_API_KEY`, do not echo the value); if unset, tell the user and stop.
+3. `focus` — everything remaining (optional focus text for the review)
 
 ### Step 1: Verify environment
 
@@ -109,6 +111,11 @@ Append the diff after `=== DIFF TO REVIEW ===`.
 **Call Codex** (single Bash):
 ```bash
 cat /tmp/loopwise-gate-prompt.md | codex exec - [--model <codex_model>] --sandbox read-only --skip-git-repo-check --ephemeral -o /tmp/loopwise-gate-output.md
+```
+
+**If `hao_bot` is true**, add the api.hao.bot provider overrides to the same call (key read from `$HAOBOT_API_KEY`):
+```bash
+cat /tmp/loopwise-gate-prompt.md | codex exec - [--model <codex_model>] -c model_provider=haobot -c 'model_providers.haobot.name="haobot"' -c 'model_providers.haobot.base_url="https://api.hao.bot/v1"' -c 'model_providers.haobot.wire_api="responses"' -c 'model_providers.haobot.env_key="HAOBOT_API_KEY"' --sandbox read-only --skip-git-repo-check --ephemeral -o /tmp/loopwise-gate-output.md
 ```
 
 **Read output** with Read tool, then **clean up**:
