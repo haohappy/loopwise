@@ -103,6 +103,9 @@ cp loopwise/.claude/commands/loopwise*.md ~/.claude/commands/
 > /loopwise plan --file docs/big-plan.md --background
 > /loopwise-status
 
+# 把审查路由到 api.hao.bot，而非 OpenAI 官方后端
+> /loopwise code --file src/auth.ts --hao-bot
+
 # 提交前快速 diff 审查
 > /loopwise-gate
 > /loopwise-gate 重点关注输入校验
@@ -120,7 +123,7 @@ cp loopwise/.claude/commands/loopwise*.md ~/.claude/commands/
 
 | 命令 | 用途 |
 |------|------|
-| `/loopwise` | 完整 review 循环，支持 `--file`、`--adversarial`、`--background`、`--max-rounds`、`--model`、`--force` |
+| `/loopwise` | 完整 review 循环，支持 `--file`、`--adversarial`、`--background`、`--max-rounds`、`--model`、`--hao-bot`、`--force` |
 | `/loopwise-gate` | 提交前快速 diff 审查，输出 WARNING/OK |
 | `/loopwise-status` | 查看后台 review 任务状态 |
 
@@ -132,6 +135,21 @@ cp loopwise/.claude/commands/loopwise*.md ~/.claude/commands/
 - **后台执行** (`--background`) — 不阻塞当前工作，用 `/loopwise-status` 查看进度
 - **验证后再修改** — Claude Code 独立验证每个 Codex 发现后才修改
 - **Disposition 追踪** — 每个发现标记为 verified、dismissed 或 unverified_fix
+- **备用后端** (`--hao-bot`) — 把 Codex 审查路由到 `api.hao.bot`，而非 OpenAI 官方后端（见下）
+
+### 通过 api.hao.bot 路由审查 (`--hao-bot`)
+
+`--hao-bot` 仅对本次运行把 Codex **审查**路由到 `api.hao.bot`（OpenAI Responses API）—— 你的全局 `~/.codex/config.toml` 不受影响。API key 从环境变量 `HAOBOT_API_KEY` 读取，绝不写入磁盘。
+
+```bash
+export HAOBOT_API_KEY=sk-...
+/loopwise code --file src/auth.ts --hao-bot      # 在 Claude Code 内
+loopwise code --file src/auth.ts --hao-bot       # 独立 shell
+```
+
+也可用环境变量：`LOOPWISE_HAOBOT=true`（用 `LOOPWISE_HAOBOT_BASE_URL` 覆盖端点，默认 `https://api.hao.bot/v1`）。
+
+**前提：** 该端点必须实现 OpenAI **Responses API**（`POST /v1/responses`）—— 当前版本的 Codex CLI 只支持 `wire_api = "responses"`。若 `HAOBOT_API_KEY` 未设置，命令会直接报错停止，而不会静默回退到官方后端。
 
 **截图：review 循环运行实况**
 
@@ -174,6 +192,7 @@ loopwise plan --max-rounds 10 --verbose "设计一个实时通知系统"
 | `--codex-model` | `LOOPWISE_CODEX_MODEL` | GPT-5.4 | Codex 审查模型 |
 | `--output-dir` | `LOOPWISE_OUTPUT_DIR` | .loopwise | 会话产物目录 |
 | `--timeout` | `LOOPWISE_TIMEOUT` | 300 | 每次 CLI 调用超时（秒） |
+| `--hao-bot` | `LOOPWISE_HAOBOT` | false | 把 Codex 审查路由到 api.hao.bot（需 `HAOBOT_API_KEY`） |
 | `--verbose` | `LOOPWISE_VERBOSE` | false | 显示调试输出 |
 
 ### `/loopwise` 自动授权权限

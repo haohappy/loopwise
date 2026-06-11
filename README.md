@@ -103,6 +103,9 @@ Then inside any Claude Code session:
 > /loopwise plan --file docs/big-plan.md --background
 > /loopwise-status
 
+# Route the review through api.hao.bot instead of the official OpenAI backend
+> /loopwise code --file src/auth.ts --hao-bot
+
 # Quick diff review before committing
 > /loopwise-gate
 > /loopwise-gate focus on input validation
@@ -120,7 +123,7 @@ Then inside any Claude Code session:
 
 | Command | Purpose |
 |---------|---------|
-| `/loopwise` | Full review loop with revisions. Supports `--file`, `--adversarial`, `--background`, `--max-rounds`, `--model`, `--force` |
+| `/loopwise` | Full review loop with revisions. Supports `--file`, `--adversarial`, `--background`, `--max-rounds`, `--model`, `--hao-bot`, `--force` |
 | `/loopwise-gate` | One-shot diff review before committing. Advisory WARNING/OK output. |
 | `/loopwise-status` | Check background review job status. |
 
@@ -132,6 +135,21 @@ Then inside any Claude Code session:
 - **Background execution** (`--background`) — Non-blocking review, check with `/loopwise-status`
 - **Verify before fixing** — Claude Code independently verifies each Codex finding before applying changes
 - **Disposition tracking** — Each finding marked as verified, dismissed, or unverified_fix in the report
+- **Alternate backend** (`--hao-bot`) — Route the Codex review through `api.hao.bot` instead of the official OpenAI backend (see below)
+
+### Routing reviews via api.hao.bot (`--hao-bot`)
+
+`--hao-bot` routes the Codex **review** through `api.hao.bot` (OpenAI Responses API) for that run only — your global `~/.codex/config.toml` is left untouched. The API key is read from the `HAOBOT_API_KEY` environment variable and is never written to disk.
+
+```bash
+export HAOBOT_API_KEY=sk-...
+/loopwise code --file src/auth.ts --hao-bot      # inside Claude Code
+loopwise code --file src/auth.ts --hao-bot       # standalone shell
+```
+
+Also available as an environment variable: `LOOPWISE_HAOBOT=true` (with `LOOPWISE_HAOBOT_BASE_URL` to override the endpoint, default `https://api.hao.bot/v1`).
+
+**Requirement:** the endpoint must implement the OpenAI **Responses API** (`POST /v1/responses`) — this Codex CLI version only supports `wire_api = "responses"`. If `HAOBOT_API_KEY` is unset, the command stops with an error rather than silently falling back.
 
 **Screenshot: Review loop in action**
 
@@ -174,6 +192,7 @@ Configure via CLI flags or environment variables:
 | `--codex-model` | `LOOPWISE_CODEX_MODEL` | GPT-5.4 | Codex model for reviews |
 | `--output-dir` | `LOOPWISE_OUTPUT_DIR` | .loopwise | Session output directory |
 | `--timeout` | `LOOPWISE_TIMEOUT` | 300 | Timeout per CLI call (seconds) |
+| `--hao-bot` | `LOOPWISE_HAOBOT` | false | Route the Codex review via api.hao.bot (needs `HAOBOT_API_KEY`) |
 | `--verbose` | `LOOPWISE_VERBOSE` | false | Show debug output |
 
 You can also copy the config template to your home directory:
