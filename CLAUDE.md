@@ -62,7 +62,7 @@ Lesson: pin an explicit, verified model. Bump it manually (with the availability
 
 Mechanism: it adds `codex exec -c` provider overrides (`model_provider=haobot`, `base_url=https://api.hao.bot/v1`, `wire_api="responses"`, `env_key="HAOBOT_API_KEY"`).
 
-**Requires the OpenAI Responses API.** This Codex CLI version only supports `wire_api = "responses"` (the older `"chat"` was removed). So api.hao.bot must expose `POST /v1/responses` — if it only has `/v1/chat/completions` or `/v1/messages`, Codex 404s. (api.hao.bot added `/v1/responses` on 2026-06-11; verified working with `gpt-5.5`.)
+**Requires the OpenAI Responses API.** This Codex CLI version only supports `wire_api = "responses"` (the older `"chat"` was removed). So api.hao.bot must expose `POST /v1/responses` — if it only has `/v1/chat/completions` or `/v1/messages`, Codex 404s. (api.hao.bot added `/v1/responses` on 2026-06-11; verified working with `gpt-5.5`, and with `gpt-5.6-sol` on 2026-08-12. Note: api.hao.bot's `/v1/models` catalog does not yet list the 5.6 family, so the CLI prints a non-fatal `failed to refresh available models` line on stderr — it does not affect reviews, which pass `--model` explicitly and read output from the `-o` file.)
 
 Usage:
 ```bash
